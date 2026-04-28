@@ -181,6 +181,10 @@ function fillSupportBlank(frame: string) {
   return frame.replace(/___/g, 'your example')
 }
 
+function formatFramesWithNumbers(frames: string[]): string {
+  return frames.map((f, i) => `(${i + 1}) "${f}"`).join(', ')
+}
+
 function buildSupportVocabulary(glossary: StudyGlossaryTerm[], count: number): StudySupportVocabulary[] {
   return glossary.slice(0, count).map((item) => ({
     term: item.term,
@@ -191,144 +195,207 @@ function buildSupportVocabulary(glossary: StudyGlossaryTerm[], count: number): S
 
 function buildGrammarPoints(week: StudyWeek, day: number): StudyGrammarPoint[] {
   const lesson1 = week.lessons[0]
+  const lesson2 = week.lessons[1]
   const lesson3 = week.lessons[2]
-  const speakingFrame = fillSupportBlank(lesson1?.sentenceFrames[0] ?? 'I am a your example developer.')
-  const interviewFrame = fillSupportBlank(lesson3?.sentenceFrames[0] ?? 'In that project, I worked on your example.')
+  const lesson4 = week.lessons[3]
 
   const grammarByDay: Record<number, StudyGrammarPoint[]> = {
     1: [
       {
         id: `${week.id}-day-1-grammar-1`,
-        title: 'Subject + be',
-        pattern: 'I am / You are / He is',
-        whenToUse: 'Use this when you introduce yourself, your role, or your current situation.',
-        example: speakingFrame,
-        commonError: 'Do not say “I developer” or “I is”. Keep the verb be.',
+        title: `Frame 1 · ${lesson1?.title ?? 'Introduction'}`,
+        pattern: lesson1?.sentenceFrames[0] ?? 'I am a ___ developer working mainly with ___.',
+        whenToUse: 'Use this to open any introduction. It answers who you are and what you work with in one short sentence. Replace the blanks with your real role and stack.',
+        example: lesson1?.guidedExample.model[0] ?? 'I am a frontend developer working mainly with React and TypeScript.',
+        commonError: 'Do not omit the verb "be". Say "I am a developer", never "I developer" or "I is developer".',
       },
       {
         id: `${week.id}-day-1-grammar-2`,
-        title: 'Present simple for routines',
-        pattern: 'I work with / I build / I use',
-        whenToUse: 'Use present simple for your regular stack, habits, and normal responsibilities.',
-        example: 'I work with React and TypeScript.',
-        commonError: 'Do not force progressive forms for every sentence like “I am work with React”.',
+        title: `Frame 2 · Current work (am + -ing)`,
+        pattern: lesson1?.sentenceFrames[1] ?? 'Right now I am building ___ for ___.',
+        whenToUse: 'Use "am + -ing" for what you are working on right now. It sounds active and current. Use present simple for your regular tools or daily habits.',
+        example: lesson1?.guidedExample.model[1] ?? 'Right now I am building an internal dashboard for support operations.',
+        commonError: 'Do not say "I build now" or "I am work on". Use the full "am + verb-ing" form for ongoing projects.',
       },
       {
         id: `${week.id}-day-1-grammar-3`,
-        title: 'Because for a simple reason',
-        pattern: '... because ...',
-        whenToUse: 'Use because to explain why you enjoy a task or why something matters.',
-        example: 'I enjoy frontend work because I like improving usability.',
-        commonError: 'After because, say a full reason instead of stopping too early.',
+        title: `Frame 3 · Adding a reason (because)`,
+        pattern: lesson1?.sentenceFrames[2] ?? 'The part I enjoy most is ___ because ___.',
+        whenToUse: 'Use because to connect a statement to a personal reason or result. This makes your introduction sound engaged, not mechanical.',
+        example: lesson1?.guidedExample.model[2] ?? 'The part I enjoy most is frontend because I like improving usability.',
+        commonError: 'After because, add a complete reason with a subject and verb. Do not say "because good" or leave the thought unfinished.',
+      },
+      {
+        id: `${week.id}-day-1-grammar-4`,
+        title: `Observation frame · ${lesson2?.title ?? 'Listening'}`,
+        pattern: lesson2?.sentenceFrames[0] ?? 'The speaker sounds credible because ___.',
+        whenToUse: 'Use this frame to describe what you noticed in a resource. It forces you to give a specific reason rather than saying "it was good."',
+        example: lesson2?.guidedExample.model[0] ?? 'The speaker sounds credible because they slow down on key ideas.',
+        commonError: 'Do not write only "it was clear." Add because + a specific observation about delivery or content.',
       },
     ],
     2: [
       {
         id: `${week.id}-day-2-grammar-1`,
-        title: 'Past simple for stories',
-        pattern: 'I worked / I fixed / I improved',
-        whenToUse: 'Use past simple to explain what happened in a finished project or interview story.',
-        example: interviewFrame,
-        commonError: 'Do not mix present and past randomly inside the same short story.',
+        title: `Interview frame 1 · ${lesson3?.title ?? 'Career path'}`,
+        pattern: lesson3?.sentenceFrames[0] ?? 'I started in ___, and that led me to ___.',
+        whenToUse: 'Use this in interviews to show your career path. Start with where you began, then connect it to where you are now.',
+        example: lesson3?.guidedExample.model[0] ?? 'I started in QA automation, and that led me to full-stack work.',
+        commonError: 'Do not confuse "started" (finished transition) with "have started" (still ongoing). Use past simple for a completed move.',
       },
       {
         id: `${week.id}-day-2-grammar-2`,
-        title: 'Result sentence',
-        pattern: 'As a result, ...',
-        whenToUse: 'Use a result sentence to show impact after the action.',
-        example: 'As a result, the team released faster.',
-        commonError: 'Do not end the story without an outcome.',
+        title: `Interview frame 2 · Current focus`,
+        pattern: lesson3?.sentenceFrames[1] ?? 'At the moment, I am focused on ___.',
+        whenToUse: 'Use this frame to tell the interviewer your current priority. "Am focused on" sounds like an intentional choice, not a vague habit.',
+        example: lesson3?.guidedExample.model[1] ?? 'At the moment, I am focused on platform reliability.',
+        commonError: 'Do not say "I focus on" here. That sounds like a daily routine. "I am focused on" means your current intentional priority.',
       },
       {
         id: `${week.id}-day-2-grammar-3`,
-        title: 'Linking ideas with and / but / so',
-        pattern: '... and ... / ... but ... / ... so ...',
-        whenToUse: 'Use short connectors to keep your answer organized without sounding too advanced.',
-        example: 'The bug was small, but it blocked the deploy, so I fixed it first.',
-        commonError: 'Do not write many disconnected short sentences if one connector makes the flow clearer.',
+        title: `Communication frame 1 · ${lesson4?.title ?? 'IT workflow'}`,
+        pattern: lesson4?.sentenceFrames[0] ?? 'First I clone ___ and install ___.',
+        whenToUse: 'Use "First... Then... If..." to explain a process or workflow in a clear, step-by-step order.',
+        example: lesson4?.guidedExample.model[0] ?? 'First I clone the repository and install dependencies.',
+        commonError: 'Do not use "and then" repeatedly for every step. Use "First", "Then", "Finally", or "If" to vary the transitions.',
+      },
+      {
+        id: `${week.id}-day-2-grammar-4`,
+        title: `Communication frame 2 · Conditional`,
+        pattern: lesson4?.sentenceFrames[2] ?? 'If something fails, I usually check ___ first.',
+        whenToUse: 'Use "If + present simple... I usually..." to explain how you diagnose or handle a problem. It sounds experienced and structured.',
+        example: lesson4?.guidedExample.model[2] ?? 'If something fails, I usually check the browser console first.',
+        commonError: 'Do not say "If something will fail". After "if" in this pattern, use present simple, not future.',
       },
     ],
     3: [
       {
         id: `${week.id}-day-3-grammar-1`,
-        title: 'Question words for comprehension',
-        pattern: 'What / Why / How',
-        whenToUse: 'Use these words to check whether you understood the source and to build your own notes.',
-        example: 'What is the main idea? Why does it matter? How can I reuse it?',
-        commonError: 'Do not take notes only as nouns; build one short question and one short answer.',
+        title: `Observation frame · ${lesson2?.title ?? 'Listening'}`,
+        pattern: lesson2?.sentenceFrames[0] ?? 'The speaker sounds credible because ___.',
+        whenToUse: 'Use this frame to explain what you noticed in the resource. Combine it with a specific detail about delivery, vocabulary, or structure.',
+        example: lesson2?.guidedExample.model[0] ?? 'The speaker sounds credible because they slow down on key ideas.',
+        commonError: 'Do not say only "it was interesting." Add a specific observation after because.',
       },
       {
         id: `${week.id}-day-3-grammar-2`,
-        title: 'There is / there are',
-        pattern: 'There is / There are',
-        whenToUse: 'Use this to describe what exists inside a source, article, system, or example.',
-        example: 'There are three key phrases in this video.',
-        commonError: 'Match singular with there is and plural with there are.',
+        title: 'There is / There are · describing resource content',
+        pattern: 'There is [one idea] / There are [several ideas] in this resource.',
+        whenToUse: 'Use "there is" or "there are" to describe what exists in the resource: steps, principles, examples, or main ideas.',
+        example: 'There are four speaking habits the presenter recommends in this talk.',
+        commonError: 'Match singular "there is" with one item and plural "there are" with more than one item.',
       },
       {
         id: `${week.id}-day-3-grammar-3`,
-        title: 'Short note structure',
-        pattern: 'Main idea + phrase + application',
-        whenToUse: 'Use this mini structure to avoid notes that feel random.',
-        example: 'Main idea: clear delivery. Phrase: reduce risk. Application: I can use this in standups.',
-        commonError: 'Do not copy whole paragraphs when a short structure is enough.',
+        title: 'Note structure · main idea + phrase + application',
+        pattern: 'Main idea: ___. Useful phrase: "___". I can use this when: ___.',
+        whenToUse: 'Use this three-part pattern to capture what you learned in a reusable format. The third part is the most important.',
+        example: 'Main idea: pace matters. Useful phrase: "stand on your truth". I can use this when speaking in standups.',
+        commonError: 'Do not take notes as a list of copied sentences. The "I can use this when" part is what makes notes productive.',
       },
     ],
     4: [
       {
         id: `${week.id}-day-4-grammar-1`,
-        title: 'Comparing versions',
-        pattern: 'This version is clearer / shorter / more precise',
-        whenToUse: 'Use comparatives when you explain why the second version improved.',
-        example: 'The second version is shorter and more precise.',
-        commonError: 'Do not say only “better”; say what is better.',
+        title: 'Comparing versions · comparative adjectives',
+        pattern: 'The second version is [clearer / shorter / more precise] because ___.',
+        whenToUse: 'Use a comparative sentence when you explain why the revised version improved. Name the specific area, not just "better."',
+        example: 'The second version is clearer because it uses exact nouns instead of "some issues."',
+        commonError: 'Do not say only "it sounds better." Say what is better: shorter, more precise, clearer structure, or stronger vocabulary.',
       },
       {
         id: `${week.id}-day-4-grammar-2`,
-        title: 'One problem at a time',
-        pattern: 'The main issue is ...',
-        whenToUse: 'Use this sentence to diagnose one weakness before rewriting.',
-        example: 'The main issue is vague vocabulary.',
-        commonError: 'Do not say everything is wrong when one main problem is enough to start.',
+        title: 'Diagnosing a weak sentence',
+        pattern: 'The main issue in this sentence is ___. I will fix it by ___.',
+        whenToUse: 'Use this two-part diagnosis before rewriting. It stops you from changing everything at once and keeps your revision focused.',
+        example: 'The main issue in this sentence is that it uses "thing" instead of a real noun. I will fix it by naming the specific tool.',
+        commonError: 'Do not say "everything is weak" or revise randomly. One problem, one fix at a time.',
       },
       {
         id: `${week.id}-day-4-grammar-3`,
-        title: 'Exact nouns',
-        pattern: 'endpoint / payload / bug / deploy / branch',
-        whenToUse: 'Use exact nouns to replace vague words like thing or stuff.',
-        example: 'The payload was incomplete, so the endpoint returned an error.',
-        commonError: 'Do not hide technical meaning behind generic nouns.',
+        title: 'Exact nouns replace vague words',
+        pattern: 'Instead of "[vague word]", use "[exact technical noun]".',
+        whenToUse: 'Use exact technical nouns during revision to replace generic words like thing, stuff, problem, issue, or nice.',
+        example: 'Instead of "there was a problem": "the endpoint returned a 500 error due to a missing payload field."',
+        commonError: 'Do not think exact means more complex. An exact noun is often shorter and clearer than a vague phrase.',
       },
     ],
     5: [
       {
         id: `${week.id}-day-5-grammar-1`,
-        title: 'Present perfect for progress',
-        pattern: 'I have improved / I have learned',
-        whenToUse: 'Use present perfect when you talk about progress up to now.',
-        example: 'I have improved my self-introduction this week.',
-        commonError: 'Do not use past simple if the focus is your progress until today.',
+        title: 'Present perfect · progress up to now',
+        pattern: 'I have improved ___ / I have learned to ___.',
+        whenToUse: 'Use present perfect for progress that connects your past practice to your current ability. It says: I practised, and I still have the result now.',
+        example: `I have learned to ${lesson1?.objective?.toLowerCase().replace(/\.$/, '') ?? 'explain my stack in English'}.`,
+        commonError: 'Do not use past simple if the focus is what you can do now. "I learned" says it is finished; "I have learned" says you still have it.',
       },
       {
         id: `${week.id}-day-5-grammar-2`,
-        title: 'Still / already / not yet',
-        pattern: 'I still need / I already can / I am not ready yet',
-        whenToUse: 'Use these words in honest self-assessment and next-step planning.',
-        example: 'I already can explain my stack, but I still need more vocabulary.',
-        commonError: 'Do not make the reflection too extreme; these markers help you be more exact.',
+        title: 'Honest self-assessment · still / already / not yet',
+        pattern: 'I already can ___. I still need to ___. I am not ready yet to ___.',
+        whenToUse: 'Use these markers to make your reflection specific and honest. They force you to be exact about where you are right now.',
+        example: 'I already can explain my stack, but I still need to practice talking about past projects without translating.',
+        commonError: 'Do not use all three markers for the same area. Choose the marker that best describes your exact situation.',
       },
       {
         id: `${week.id}-day-5-grammar-3`,
-        title: 'Next-week plan',
-        pattern: 'Next week I will ...',
-        whenToUse: 'Use a short future sentence to define the next action.',
-        example: 'Next week I will review the same phrases before recording again.',
-        commonError: 'Do not end the week without one concrete next action.',
+        title: 'Future planning · next week I will',
+        pattern: 'Next week I will ___ because ___ is still weak.',
+        whenToUse: 'Use this at the end of the week to turn reflection into a concrete action plan.',
+        example: 'Next week I will practice the opening frame daily because the first sentence still sounds translated.',
+        commonError: 'Do not end reflection without a concrete next action. "I will try harder" is not a plan. Name the specific skill and the specific action.',
       },
     ],
   }
 
   return grammarByDay[day] ?? grammarByDay[1]
+}
+
+
+function buildGrammarTheorySection(week: StudyWeek, day: number): StudyDaySectionSeed {
+  const grammar = buildGrammarPoints(week, day)
+
+  const contextByDay: Record<number, { intro: string; cta: string }> = {
+    1: {
+      intro: `Grammar lesson — ${grammar.length} rules to study before you write. Each rule corresponds directly to one of the sentence frames in today's class. Read each one carefully. Most speaking errors at this stage do not come from not knowing vocabulary — they come from these specific grammar patterns being applied incorrectly.`,
+      cta: `Now take the first sentence frame from this class. Write it with your real details and check: did you follow the rule? If not, rewrite the sentence before moving to the next one. One correct sentence is better than three guessed ones.`,
+    },
+    2: {
+      intro: `Grammar lesson — ${grammar.length} structures for professional interview answers and technical communication. These are the patterns that make the difference between an answer that sounds structured and one that sounds improvised. Study each one before writing your tasks today.`,
+      cta: `When you write your interview answer and your async message, return here if a sentence feels uncertain. Identify which rule applies, check your sentence against the correct pattern, and rewrite before continuing.`,
+    },
+    3: {
+      intro: `Grammar lesson — ${grammar.length} structures for working with the resource today. These patterns give you precise language for taking notes, describing what you observed, and summarising ideas. Study them before opening the resource so you have the tools ready when you need them.`,
+      cta: `During and after the resource, actively use these patterns. Write at least one sentence for each rule using something from the resource. This is how grammar and vocabulary combine into usable English you can reproduce later.`,
+    },
+    4: {
+      intro: `Grammar lesson — ${grammar.length} correction structures. Today is your revision lab, so the grammar you need is specifically about identifying and rewriting weak sentences. Study each pattern and treat it as a checklist for reviewing your earlier work.`,
+      cta: `Take your draft and scan every sentence. For each one, decide which rule it should follow. If the sentence violates a rule, rewrite it before writing your second version. A good correction names the rule it applies — not just a general feeling that it sounds better.`,
+    },
+    5: {
+      intro: `Grammar lesson — ${grammar.length} structures for your assessment and reflection today. Vague self-reflection does not produce progress. These grammar patterns force you to be specific: what exactly improved, what exactly still needs work, and what exactly you will practise next.`,
+      cta: `Use these structures directly in your written assessment. If your reflection says only "it was hard" or "I improved", it is not specific enough. Use the patterns above to produce sentences that name the real skill, the real gap, and the real next step.`,
+    },
+  }
+
+  const context = contextByDay[day] ?? contextByDay[1]
+
+  const paragraphs: string[] = [context.intro]
+
+  grammar.forEach((point, i) => {
+    paragraphs.push(
+      `Rule ${i + 1} — ${point.title}. Pattern: ${point.pattern}. ${point.whenToUse}`,
+      `Correct: "${point.example}". Error to avoid: ${point.commonError}`,
+    )
+  })
+
+  paragraphs.push(context.cta)
+
+  return {
+    title: 'Grammar lesson · rules for today',
+    paragraphs,
+    bullets: grammar.map((point, i) => `Rule ${i + 1} · ${point.title}: ${point.pattern}`),
+  }
 }
 
 function buildPrerequisites(week: StudyWeek, day: number, glossary: StudyGlossaryTerm[]): StudyDayPrerequisite {
@@ -426,9 +493,7 @@ function buildSectionSupport(
           : glossary.slice(0, 3),
         3
       ),
-      grammarCoach: grammar.slice(sectionIndex % grammar.length, (sectionIndex % grammar.length) + 2).length > 0
-        ? grammar.slice(sectionIndex % grammar.length, (sectionIndex % grammar.length) + 2)
-        : grammar,
+      grammarCoach: grammar,
       checkQuestion: matched.question,
     },
   }
@@ -1302,16 +1367,18 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
           title: `Teacher explanation · ${lesson1.title}`,
           paragraphs: [
             `${lesson1.objective} In this class, do not rush into the final activity. First, understand the logic behind the language you are using.`,
-            lesson1.miniLesson.join(' '),
+            ...lesson1.miniLesson,
             `When learners fail in this skill, it is usually because they try to sound advanced too early. Your job today is to build control first, then confidence.`,
           ],
-          bullets: lesson1.teachingPoints,
+          bullets: lesson1.sentenceFrames,
         },
+        buildGrammarTheorySection(week, 1),
         {
           title: `Guided model · ${lesson1.title}`,
           paragraphs: [
             lesson1.guidedExample.scenario,
-            `Read the model slowly, copy the structure, and only then replace the details with your real experience.`,
+            `This section has ${lesson1.sentenceFrames.length} sentence frames. Each frame answers one key question about your role, your work, or your reason. The raw frames are: ${formatFramesWithNumbers(lesson1.sentenceFrames)}.`,
+            `Read the filled model below carefully. Notice how the sample details fit the structure. After reading, write your own version replacing every blank with information from your real experience.`,
             lesson1.guidedExample.whyItWorks,
           ],
           bullets: lesson1.guidedExample.model,
@@ -1320,15 +1387,18 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
           title: `Listening classroom · ${lesson2.title}`,
           paragraphs: [
             `${lesson2.objective} The purpose of this part is not only to understand the resource. It is to train your ear to notice how clear English sounds when ideas are ordered well.`,
-            lesson2.miniLesson.join(' '),
+            `Three-step listening process: First, listen once for the global idea and resist stopping. Second, listen again and pause after each main idea to identify useful phrases. Third, retell what you heard in two or three simpler sentences without looking at notes.`,
+            ...lesson2.miniLesson.length > 2 ? lesson2.miniLesson.slice(1, -1) : lesson2.miniLesson.slice(1),
             `After you listen, retelling in simpler English is the real test. If you can retell it, you learned it.`,
           ],
-          bullets: lesson2.teachingPoints,
+          bullets: lesson2.supportTools,
         },
         {
           title: 'Mistakes to avoid today',
           paragraphs: [
             `Most students in this stage lose quality because they over-translate or because they consume a resource passively and call it study.`,
+            `For "${lesson1.title}": ${lesson1.commonMistakes[0]} The correction: say one short sentence using a frame before trying a full answer.`,
+            `For "${lesson2.title}": ${lesson2.commonMistakes[0]} The correction: pause every 30 seconds and retell what you just heard in your own words.`,
             `Today, every input should end in output: repeat, retell, or write something with it.`,
           ],
           bullets: [...lesson1.commonMistakes.slice(0, 2), ...lesson2.commonMistakes.slice(0, 2)],
@@ -1372,24 +1442,27 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
           title: `Interview lesson · ${lesson3.title}`,
           paragraphs: [
             `${lesson3.objective} The point is not to memorize a script. The point is to learn how to select the right story and structure it so another person trusts your thinking.`,
-            lesson3.miniLesson.join(' '),
+            ...lesson3.miniLesson,
             `A good interview answer sounds relevant because it chooses the right detail, not because it says everything.`,
           ],
-          bullets: lesson3.teachingPoints,
+          bullets: lesson3.sentenceFrames,
         },
+        buildGrammarTheorySection(week, 2),
         {
           title: `Communication lesson · ${lesson4.title}`,
           paragraphs: [
             `${lesson4.objective} This is where your English starts to sound useful in a real engineering team.`,
-            lesson4.miniLesson.join(' '),
+            ...lesson4.miniLesson,
             `Exact language wins over decorative language. The reader should understand what changed, why it matters, and what should happen next.`,
           ],
-          bullets: lesson4.teachingPoints,
+          bullets: lesson4.sentenceFrames,
         },
         {
           title: 'Model and correction logic',
           paragraphs: [
             `Study the example lines before you create your own version. The example is not there to be copied forever; it is there to show you how a clean answer is built.`,
+            `For "${lesson3.title}": the sentence frames follow this logic: ${formatFramesWithNumbers(lesson3.sentenceFrames.slice(0, 2))}. Read the filled model, then replace every sample detail with a real story from your experience.`,
+            `For "${lesson4.title}": the frames follow an ordered sequence: ${formatFramesWithNumbers(lesson4.sentenceFrames.slice(0, 2))}. Use exact tool names and action verbs in every sentence.`,
             `After writing, compare your version against the common mistakes. Correction is part of the class, not something extra.`,
           ],
           bullets: [...lesson3.guidedExample.model, ...lesson4.guidedExample.model],
@@ -1433,28 +1506,46 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
           title: 'Before you open the resource',
           paragraphs: [
             `Your goal today is not simply to watch or read ${resource?.title ?? 'the weekly resource'}. Your goal is to extract language, ideas, and examples you can use in your own English.`,
-            `Good academic study starts before the resource begins: know what you are looking for and why it matters for the week's communication goal.`,
+            `Good academic study starts before the resource begins: know what you are looking for and why it matters for the week's communication goal. Passive consumption and active study look the same from the outside but produce completely different results.`,
+            `Vocabulary pre-loading: Look at the title and topic of the resource. List 5 to 8 technical or academic words you expect to hear or read. When they appear, you will recognize them instead of stopping to translate. If a word surprises you, add it to your notes immediately.`,
+            `Prediction strategy: Before you start, ask yourself: What is the main argument likely to be? What structure will this resource follow — problem and solution, list of tips, story, or explanation? Predicting activates your existing knowledge and makes comprehension significantly faster.`,
           ],
           bullets: [
             `Study objective: ${resource?.studyObjective ?? 'Use the resource as guided input.'}`,
             `Why it helps: ${resource?.whyItHelps ?? 'It connects the lesson to a real source.'}`,
+            `Pre-loading task: Write 5 words you expect to appear before pressing play or opening the page.`,
+            `Focus question: What do I most want to learn from this resource today?`,
           ],
         },
+        buildGrammarTheorySection(week, 3),
         {
           title: 'During the resource',
           paragraphs: [
             `Pause strategically. Every pause should produce something: a phrase, a summary, a comparison, or a spoken answer.`,
+            `When you pause, use the note structure: "Main idea: ___. Useful phrase: '___'. I can use this when: ___." The third part — when you can use it — is the most important part. Without that, the phrase stays in your notebook but never reaches your mouth.`,
+            `If you hear a phrase you want to reuse, say it aloud twice immediately. This activates pronunciation before your memory has time to forget the sound. Then write it down. Speaking first, writing second.`,
+            `If you find a section unclear, do not stop the whole session. Write a timestamp note and continue. Missing one segment does not break your comprehension of the whole resource. Return to unclear parts only after finishing once.`,
             `If you only highlight or only keep watching, the class stays superficial. The real learning happens when you turn input into output immediately.`,
           ],
-          bullets: resource?.practiceWhileUsing ?? [],
+          bullets: resource?.practiceWhileUsing ?? [
+            `Pause after each main idea and retell it in simpler words before continuing.`,
+            `Say one key phrase aloud twice before writing it down.`,
+            `Note timestamps of any section you want to revisit after finishing.`,
+          ],
         },
         {
           title: 'After the resource',
           paragraphs: [
             `Close the tab or video for a moment and explain what you learned without looking. This is the moment where comprehension becomes usable English.`,
+            `Structure your summary using this formula: "There are [number] main ideas in this resource. First, [idea 1]. Second, [idea 2]. The most important takeaway is [conclusion]." This forces you to organise your understanding before writing notes.`,
+            `Real comprehension test: Ask yourself — if someone asked me to teach this topic in 2 minutes, what would I say? If you cannot answer that without looking at notes, you consumed the resource but did not yet learn from it. Repeat the retell exercise until you can do it without prompts.`,
             `Then answer the quiz prompts aloud and in writing. The goal is to move from recognition to production.`,
           ],
-          bullets: resource?.keyPhrases ?? [],
+          bullets: resource?.keyPhrases ?? [
+            `Say your 2-minute summary aloud without looking at notes.`,
+            `Write the 3 most useful phrases with one real example for each.`,
+            `Answer one comprehension question in writing from memory.`,
+          ],
         },
       ],
       writtenActivities: [
@@ -1491,25 +1582,35 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
       minutes: '45-60 min',
       focus: 'Revision, correction, and stronger second versions',
       sections: [
+        buildGrammarTheorySection(week, 4),
         {
           title: 'Why correction matters',
           paragraphs: [
             `Many learners think repetition alone creates improvement. In reality, repetition without correction only makes weak patterns more automatic.`,
             `Today is your correction lab. Compare your first versions with the pass criteria of the lessons and find the exact place where quality drops.`,
+            `Three-step diagnosis before every correction: (1) Find the sentence that feels weakest. (2) Name the exact problem: is it a vague noun, the wrong tense, a missing outcome, or a translated structure? (3) Identify which grammar rule from today's lesson fixes that problem. Correction without naming the rule is just guessing.`,
+            `Common patterns that need correction at this stage: sentences that start with "I did..." without saying what exactly. Answers that end after the action without the result. Technical explanations that use "things" or "stuff" instead of exact tool names. Introductions that say "I am good at..." without one real example.`,
           ],
           bullets: [
-            'Look for vague nouns.',
-            'Look for missing structure.',
-            'Look for lines that sound translated.',
+            'Look for vague nouns: replace thing, stuff, problem, issue with exact technical terms.',
+            'Look for missing structure: every story needs action + result.',
+            'Look for lines that sound translated: rewrite using one of the lesson frames.',
             'Look for answers that end without impact or conclusion.',
           ],
         },
         {
           title: 'How to revise intelligently',
           paragraphs: [
-            `Revise one problem at a time. If you try to fix everything at once, your attention becomes weak.`,
-            `Choose the most important weakness first: clarity, structure, confidence, technical precision, or relevance.`,
-            `Then produce a second version that is visibly better in that specific area.`,
+            `Revise one problem at a time. If you try to fix everything at once, your attention becomes weak and you end up with many small changes that do not add up to real improvement.`,
+            `Before vs After structure: Write the original sentence, then write your revised version directly below it. Compare them line by line. If the revision only adds more words without adding clarity, you improved quantity, not quality.`,
+            `Grammar-based revision checklist: Check every sentence for vague nouns — replace with exact technical nouns. Check every story sentence for the outcome — add it if missing. Check every opening sentence — does it state the main point immediately? Check every because — does it add a full reason with Subject + Verb?`,
+            `Choose the most important weakness first: clarity, structure, confidence, technical precision, or relevance. Then produce a second version that is visibly better in that specific area.`,
+          ],
+          bullets: [
+            `Step 1: Choose one sentence to fix. Write it above a blank line.`,
+            `Step 2: Name the problem in one word: vague / structure / tense / missing-result / translated.`,
+            `Step 3: Write the corrected version on the blank line using the correct grammar pattern.`,
+            `Step 4: Read both versions aloud. The improvement should be audible, not just visual.`,
           ],
         },
         {
@@ -1517,11 +1618,15 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
           paragraphs: [
             `A stronger version is not necessarily longer. It is clearer, more precise, and easier for another person to follow.`,
             `If your second version only adds more words, you probably improved quantity, not quality.`,
+            `Before and after examples: Weak: "I fixed a problem in the app." Strong: "I fixed a null reference error in the authentication middleware that was blocking login for users with special characters in their email." The second version is longer here because every added word adds real information, not decoration.`,
+            `Before and after example for brevity: Weak: "I am a developer who is good at making things for the frontend side of web applications." Strong: "I am a frontend developer working mainly with React and TypeScript." The second version is shorter because every vague phrase was replaced with an exact noun.`,
           ],
           bullets: [
             'Shorter but clearer is an improvement.',
             'More exact vocabulary is an improvement.',
             'Better logical order is an improvement.',
+            'Adding a real result or outcome is an improvement.',
+            'Replacing a vague adjective with a specific example is an improvement.',
           ],
         },
       ],
@@ -1559,11 +1664,14 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
       minutes: '30-45 min',
       focus: 'Assessment and weekly closure',
       sections: [
+        buildGrammarTheorySection(week, 5),
         {
           title: 'What assessment means this week',
           paragraphs: [
             `Assessment is not about perfection. It is about proving that you can perform the main task of the week without heavy dependence on notes.`,
+            `Two levels of evidence: Recording evidence — can you say the main task from this week without reading a script? Writing evidence — does your written task meet the pass criteria listed in the lesson? Real assessment requires both. Checking a box without the evidence protects your progress score but hurts your actual level.`,
             `Today you review the evidence required by the lessons and compare your final version against the weekly goal.`,
+            `Honest assessment question: Look at each lesson's pass criteria. For each criterion, decide: "I can do this consistently without notes" (PASS), "I can do this with notes but not freely" (IMPROVING — repeat next week), or "I struggle with this even with notes" (NEEDS PRACTICE — do not unlock the next week yet). Being honest here is what separates real progress from false progress.`,
           ],
         },
         {
@@ -1578,7 +1686,15 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
           title: 'Reflection for real progress',
           paragraphs: [
             `Ask yourself what improved, what still feels fragile, and what you need to carry into the next week.`,
+            `Structured reflection format: use these four sentences — (1) "This week I improved my ability to ___ because I practised ___." (2) "The skill that still feels fragile is ___ because I notice I still ___." (3) "The sentence or pattern that still sounds translated is: ___." (4) "Next week I will specifically practise ___ in order to fix ___."`,
+            `Progress warning: If your reflection says everything was good or uses the word "everything" for any category, you are not noticing your weak points yet. The first real sign of improvement is that you can name your own mistakes precisely and quickly.`,
             `This reflection matters because your next module should build on something real, not on auto-completed progress.`,
+          ],
+          bullets: [
+            `I improved: ___ (name the exact skill, not just "my English").`,
+            `I still need to practise: ___ (name the exact structure or vocabulary area).`,
+            `The sentence that still sounds translated: ___ (write it, then write a better version).`,
+            `Next week I will: ___ (one concrete action, not "I will try harder").`,
           ],
         },
       ],

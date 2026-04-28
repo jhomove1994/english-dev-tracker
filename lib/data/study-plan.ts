@@ -162,18 +162,29 @@ function fillFrame(frame: string, values: string[]) {
 }
 
 function buildMiniLesson(input: Omit<SkillLesson, 'classFlow' | 'supportTools' | 'miniLesson' | 'commonMistakes' | 'guidedExample' | 'microDrills'>) {
+  const teachingParagraphs = input.teachingPoints.map((point, i) => {
+    const frame = input.sentenceFrames[i]
+    return frame ? `${point} You can build this with the frame: "${frame}"` : point
+  })
   return [
     `Core idea: ${input.objective}`,
-    `Teacher explanation: ${input.teachingPoints[0]}`,
-    `What good performance sounds like: ${input.teachingPoints[input.teachingPoints.length - 1]}`,
+    ...teachingParagraphs,
+    `Output for this class: ${input.output}`,
+    `Quality check: ${input.check.passCriteria[0]}`,
   ]
 }
 
 function buildGuidedExample(input: Omit<SkillLesson, 'classFlow' | 'supportTools' | 'miniLesson' | 'commonMistakes' | 'guidedExample' | 'microDrills'>): GuidedExample {
+  const skillContext: Record<StudySkill, string> = {
+    speaking: 'Read each line aloud once to feel the rhythm, then replace the sample details with your real information.',
+    listening: 'Use these patterns to identify and note similar phrases when you work with the weekly resource.',
+    interview: 'Study the structure carefully before you build your own version. Choose a real project and adapt each line.',
+    it_communication: 'Replace every sample value with a real tool, action, or outcome from your current work.',
+  }
   return {
-    scenario: `Use this model when you practise "${input.title}".`,
+    scenario: `Study this model for "${input.title}". Each line uses one sentence frame from this lesson. ${skillContext[input.skill]}`,
     model: input.sentenceFrames.slice(0, 3).map((frame) => fillFrame(frame, SKILL_SAMPLE_VALUES[input.skill])),
-    whyItWorks: 'The model stays short, uses exact nouns, and follows a clear logical order, so you can imitate it before improvising your own version.',
+    whyItWorks: `This model works because each sentence is short, answers one clear question, and uses exact words. The first line establishes the main point. Each following line adds a specific detail or reason. Copy the structure first, then replace the sample details with your own experience.`,
   }
 }
 
