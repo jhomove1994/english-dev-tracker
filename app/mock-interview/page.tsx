@@ -3,13 +3,27 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { INTERVIEW_QUESTIONS, InterviewQuestion } from '@/lib/data/interview-questions'
 import { useSpeech } from '@/lib/hooks/useSpeech'
-import { ChevronDown, ChevronUp, RotateCcw, CheckCircle, XCircle, MinusCircle, Volume2, Mic, Square, Copy, Check } from 'lucide-react'
+import { usePersistentStorage } from '@/lib/hooks/usePersistentStorage'
+import { PERSISTENT_STORAGE_KEY } from '@/lib/persistence'
+import { ChevronDown, ChevronUp, RotateCcw, CheckCircle, XCircle, MinusCircle, Volume2, Mic, Square, Copy, Check, History } from 'lucide-react'
 
 type InterviewType = 'behavioral' | 'technical' | 'system_design' | 'mixed'
 type Difficulty = 'junior' | 'mid' | 'senior' | 'all'
 type QuestionResult = 'nailed' | 'ok' | 'failed' | null
 
 interface SessionQuestion { question: InterviewQuestion; result: QuestionResult; myAnswer: string }
+
+export interface MockInterviewSession {
+  id: string
+  date: string
+  interviewType: InterviewType
+  difficulty: Difficulty
+  score: number
+  nailed: number
+  ok: number
+  failed: number
+  total: number
+}
 
 const QUESTION_TIME_SECONDS = 120
 
@@ -58,9 +72,11 @@ export default function MockInterviewPage() {
   const [isListening, setIsListening] = useState(false)
   const [transcript, setTranscript] = useState('')
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const { speak, stop: stopTTS, isSpeaking, isSupported: ttsSupported } = useSpeech()
+  const [sessionHistory, setSessionHistory] = usePersistentStorage<MockInterviewSession[]>(PERSISTENT_STORAGE_KEY.MOCK_INTERVIEW_SESSIONS, [])
 
   const speechRecognitionAvailable = typeof window !== 'undefined' && !!getSpeechRecognition()
 
@@ -99,7 +115,26 @@ export default function MockInterviewPage() {
     setShowTips(false); setTranscript('')
     stopListening()
     stopTTS()
-    if (currentIndex + 1 >= sessionQuestions.length) { stopTimer(); setPhase('summary') } else {
+    if (currentIndex + 1 >= sessionQuestions.length) {
+      stopTimer()
+      // Save session to history
+      const nailedCount = updated.filter(q => q.result === 'nailed').length
+      const okCount = updated.filter(q => q.result === 'ok').length
+      const failedCount = updated.filter(q => q.result === 'failed').length
+      const sessionRecord: MockInterviewSession = {
+        id: crypto.randomUUID(),
+        date: new Date().toISOString(),
+        interviewType,
+        difficulty,
+        score: Math.round((nailedCount / updated.length) * 100),
+        nailed: nailedCount,
+        ok: okCount,
+        failed: failedCount,
+        total: updated.length,
+      }
+      setSessionHistory(prev => [sessionRecord, ...prev].slice(0, 20))
+      setPhase('summary')
+    } else {
       setCurrentIndex(i => i + 1)
       startTimer()
     }
@@ -174,6 +209,29 @@ export default function MockInterviewPage() {
           <p className="text-gray-400">Each question has a 2-minute timer. You can speak your answer aloud (speech-to-text), type it, then copy a prompt to get AI feedback in ChatGPT or Claude.</p>
         </div>
         <button onClick={startSession} className="w-full bg-green-500 hover:bg-green-600 text-black font-bold py-4 rounded-xl text-lg transition-colors">Start Interview Session</button>
+
+        {sessionHistory.length > 0 && (
+          <div className="bg-[#111111] border border-[#1f1f1f] rounded-xl p-5">
+            <button onClick={() => setShowHistory(h => !h)} className="flex items-center justify-between w-full">
+              <span className="flex items-center gap-2 text-white font-semibold"><History size={16} /> Session History ({sessionHistory.length})</span>
+              {showHistory ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+            </button>
+            {showHistory && (
+              <div className="mt-4 space-y-2">
+                {sessionHistory.slice(0, 10).map(s => (
+                  <div key={s.id} className="flex items-center justify-between bg-[#1a1a1a] rounded-lg px-3 py-2 text-sm">
+                    <div className="flex items-center gap-3">
+                      <span className={`font-bold ${s.score >= 70 ? 'text-green-400' : s.score >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>{s.score}%</span>
+                      <span className="text-gray-400 capitalize">{s.interviewType.replace('_', ' ')}</span>
+                      <span className="text-gray-500 text-xs capitalize">{s.difficulty}</span>
+                    </div>
+                    <span className="text-gray-600 text-xs">{new Date(s.date).toLocaleDateString('en', { month: 'short', day: 'numeric' })}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     )
   }

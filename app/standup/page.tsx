@@ -2,8 +2,9 @@
 
 import { useState, useRef } from 'react'
 import { useAudioRecorder } from '@/lib/hooks/useAudioRecorder'
+import { useSpeech } from '@/lib/hooks/useSpeech'
 import { formatTime, formatDuration } from '@/lib/utils'
-import { Mic, Square, Play, Pause, Trash2 } from 'lucide-react'
+import { Mic, Square, Play, Pause, Trash2, Volume2 } from 'lucide-react'
 
 const PROMPTS = [
   "Yesterday I worked on...",
@@ -14,6 +15,7 @@ const PROMPTS = [
 
 export default function StandupPage() {
   const { isRecording, currentDuration, recordings, startRecording, stopRecording, deleteRecording, updateNotes } = useAudioRecorder()
+  const { speak, isSupported: ttsSupported } = useSpeech()
   const [playingId, setPlayingId] = useState<string | null>(null)
   const audioElsRef = useRef<Record<string, HTMLAudioElement>>({})
 
@@ -44,7 +46,16 @@ export default function StandupPage() {
           {PROMPTS.map((prompt, i) => (
             <div key={i} className="flex items-start gap-3 p-3 bg-[#1a1a1a] rounded-lg">
               <span className="text-green-500 font-bold text-sm mt-0.5">{i+1}.</span>
-              <p className="text-sm text-gray-300 italic">&quot;{prompt}&quot;</p>
+              <p className="text-sm text-gray-300 italic flex-1">&quot;{prompt}&quot;</p>
+              {ttsSupported && (
+                <button
+                  onClick={() => speak(prompt)}
+                  className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full border border-[#333] text-gray-500 hover:text-white hover:border-green-500 transition-colors"
+                  title="Hear pronunciation"
+                >
+                  <Volume2 size={13} />
+                </button>
+              )}
             </div>
           ))}
         </div>

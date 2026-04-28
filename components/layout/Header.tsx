@@ -13,6 +13,10 @@ const titles: Record<string, string> = {
   '/mock-interview': 'Mock Interview Simulator',
   '/standup': 'Standup Recorder',
   '/stats': 'Statistics',
+  '/meeting-phrases': 'Meeting Phrases',
+  '/dictation': 'Listening Comprehension',
+  '/templates': 'Email & Slack Templates',
+  '/settings': 'Settings & Data',
 }
 
 export function Header() {

@@ -14,13 +14,14 @@ export default function FlashcardsPage() {
   const [immersionMode, setImmersionMode] = useState(false)
   const [showPronunciation, setShowPronunciation] = useState(false)
   const [playingRecId, setPlayingRecId] = useState<string | null>(null)
+  const [browseMode, setBrowseMode] = useState(false)
   const audioElsRef = useRef<Record<string, HTMLAudioElement>>({})
 
-  const { dueCards, rateCard, masteredCount, totalCards, categories } = useFlashcards(selectedCategory)
+  const { allCards, dueCards, rateCard, masteredCount, totalCards, categories } = useFlashcards(selectedCategory)
   const { speak, stop, isSpeaking, isSupported: ttsSupported } = useSpeech()
   const { isRecording, currentDuration, recordings, startRecording, stopRecording, deleteRecording } = useAudioRecorder()
 
-  const cards = dueCards
+  const cards = browseMode ? allCards : dueCards
   const currentCard = cards[currentIndex]
 
   const handleRate = (rating: 'again' | 'hard' | 'good' | 'easy') => {
@@ -65,6 +66,13 @@ export default function FlashcardsPage() {
         </div>
         <div className="flex items-center gap-3">
           <button
+            onClick={() => { setBrowseMode(m => !m); setCurrentIndex(0); setIsFlipped(false); setSessionComplete(false) }}
+            title={browseMode ? 'Browse mode ON – showing all cards' : 'Switch to Browse All mode'}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${browseMode ? 'border-orange-500 bg-orange-500/10 text-orange-400' : 'border-[#2a2a2a] text-gray-500 hover:text-gray-300'}`}
+          >
+            Browse {browseMode ? 'ON' : 'All'}
+          </button>
+          <button
             onClick={() => setImmersionMode(m => !m)}
             title={immersionMode ? 'Immersion mode ON – no Spanish translations' : 'Immersion mode OFF – showing Spanish'}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${immersionMode ? 'border-blue-500 bg-blue-500/10 text-blue-400' : 'border-[#2a2a2a] text-gray-500 hover:text-gray-300'}`}
@@ -89,7 +97,7 @@ export default function FlashcardsPage() {
         ))}
       </div>
 
-      {sessionComplete || cards.length === 0 ? (
+      {!browseMode && (sessionComplete || cards.length === 0) ? (
         <div className="bg-[#111111] border border-[#1f1f1f] rounded-xl p-12 text-center">
           <div className="text-5xl mb-4">🎉</div>
           <h3 className="text-xl font-bold text-white mb-2">{cards.length === 0 ? 'No cards due!' : 'Session complete!'}</h3>
@@ -100,7 +108,7 @@ export default function FlashcardsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="text-sm text-gray-500 text-center">{currentIndex + 1} / {cards.length}</div>
+          <div className="text-sm text-gray-500 text-center">{currentIndex + 1} / {cards.length}{browseMode && <span className="ml-2 text-orange-400 text-xs">(Browse All)</span>}</div>
 
           {/* Card */}
           <div onClick={() => setIsFlipped(!isFlipped)} className="bg-[#111111] border border-[#1f1f1f] rounded-xl p-8 min-h-[200px] flex flex-col items-center justify-center cursor-pointer hover:border-[#333] transition-colors">
@@ -187,7 +195,7 @@ export default function FlashcardsPage() {
             </div>
           )}
 
-          {isFlipped && (
+          {isFlipped && !browseMode && (
             <div className="grid grid-cols-4 gap-3">
               {[
                 { rating: 'again' as const, label: '❌ Again', cls: 'border-red-500/30 hover:bg-red-500/10 text-red-400' },
@@ -197,6 +205,20 @@ export default function FlashcardsPage() {
               ].map(({ rating, label, cls }) => (
                 <button key={rating} onClick={() => handleRate(rating)} className={`border rounded-xl py-3 text-sm font-medium transition-colors ${cls}`}>{label}</button>
               ))}
+            </div>
+          )}
+          {browseMode && (
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setCurrentIndex(i => Math.max(0, i - 1)); setIsFlipped(false) }}
+                disabled={currentIndex === 0}
+                className="flex-1 border border-[#2a2a2a] rounded-xl py-3 text-sm font-medium text-gray-400 hover:text-white hover:border-[#3a3a3a] disabled:opacity-30 transition-colors"
+              >← Prev</button>
+              <button
+                onClick={() => { setCurrentIndex(i => Math.min(cards.length - 1, i + 1)); setIsFlipped(false) }}
+                disabled={currentIndex >= cards.length - 1}
+                className="flex-1 border border-[#2a2a2a] rounded-xl py-3 text-sm font-medium text-gray-400 hover:text-white hover:border-[#3a3a3a] disabled:opacity-30 transition-colors"
+              >Next →</button>
             </div>
           )}
         </div>

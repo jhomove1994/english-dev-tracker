@@ -11,6 +11,8 @@ export const PERSISTENT_STORAGE_KEY = {
   STUDY_PLAN_DAY_WRITING: 'study_plan_day_writing',
   STUDY_PLAN_DAY_AI_FEEDBACK: 'study_plan_day_ai_feedback',
   STUDY_PLAN_ERRORS: 'study_plan_errors',
+  MOCK_INTERVIEW_SESSIONS: 'mock_interview_sessions',
+  DICTATION_HISTORY: 'dictation_history',
 } as const
 
 export type PersistentStorageKey = (typeof PERSISTENT_STORAGE_KEY)[keyof typeof PERSISTENT_STORAGE_KEY]
