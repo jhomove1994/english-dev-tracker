@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Timer, CheckSquare, CreditCard, Mic, BarChart3, MessageSquare, BookOpen } from 'lucide-react'
+import { LayoutDashboard, Timer, CheckSquare, CreditCard, Mic, BarChart3, MessageSquare, BookOpen, Users, Headphones, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
@@ -13,6 +13,9 @@ const navItems = [
   { href: '/flashcards', label: 'Flashcards', icon: CreditCard },
   { href: '/mock-interview', label: 'Mock Interview', icon: MessageSquare },
   { href: '/standup', label: 'Standup', icon: Mic },
+  { href: '/meeting-phrases', label: 'Meeting Phrases', icon: Users },
+  { href: '/dictation', label: 'Dictation', icon: Headphones },
+  { href: '/templates', label: 'Templates', icon: FileText },
   { href: '/stats', label: 'Statistics', icon: BarChart3 },
 ]
 
