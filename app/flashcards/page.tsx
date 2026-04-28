@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useFlashcards } from '@/lib/hooks/useFlashcards'
-import { FLASHCARD_CATEGORIES } from '@/lib/data/flashcards'
 import { ChevronDown, ChevronUp, RotateCcw } from 'lucide-react'
 
 export default function FlashcardsPage() {
@@ -10,7 +9,7 @@ export default function FlashcardsPage() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
   const [sessionComplete, setSessionComplete] = useState(false)
-  const { dueCards, rateCard, masteredCount, totalCards } = useFlashcards(selectedCategory)
+  const { dueCards, rateCard, masteredCount, totalCards, categories } = useFlashcards(selectedCategory)
   const cards = dueCards
   const currentCard = cards[currentIndex]
 
@@ -22,7 +21,7 @@ export default function FlashcardsPage() {
   }
 
   const restart = () => { setCurrentIndex(0); setIsFlipped(false); setSessionComplete(false) }
-  const categories = ['All', ...FLASHCARD_CATEGORIES]
+  const categoryOptions = ['All', ...categories]
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -38,7 +37,7 @@ export default function FlashcardsPage() {
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
-        {categories.map(cat => (
+        {categoryOptions.map(cat => (
           <button key={cat} onClick={() => { setSelectedCategory(cat); setCurrentIndex(0); setIsFlipped(false); setSessionComplete(false) }}
             className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedCategory === cat ? 'bg-green-500 text-black' : 'bg-[#1f1f1f] text-gray-400 hover:bg-[#2a2a2a]'}`}>
             {cat}

@@ -20,6 +20,23 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Local persistence
+
+This app now persists study progress locally in SQLite when you run the Next.js server on your own machine.
+
+- Database file: `data/english-dev-tracker.sqlite`
+- API route used by the client cache: `/api/storage`
+- The browser still keeps a fast local cache, but SQLite is now the durable local source for:
+  - academy progress
+  - written work
+  - AI feedback notes
+  - extracted errors
+  - custom flashcards
+  - flashcard SRS state
+  - study sessions and streak data
+
+This setup is local-only and does not require Supabase or any paid cloud service.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

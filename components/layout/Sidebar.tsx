@@ -2,11 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Timer, CheckSquare, CreditCard, Mic, BarChart3, MessageSquare } from 'lucide-react'
+import { LayoutDashboard, Timer, CheckSquare, CreditCard, Mic, BarChart3, MessageSquare, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/study-plan', label: 'Study Plan', icon: BookOpen },
   { href: '/timer', label: 'Study Timer', icon: Timer },
   { href: '/milestones', label: 'Milestones', icon: CheckSquare },
   { href: '/flashcards', label: 'Flashcards', icon: CreditCard },
@@ -29,7 +30,7 @@ export function Sidebar() {
         <nav className="flex-1 p-4 space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.href
+            const isActive = item.href === '/study-plan' ? pathname.startsWith('/study-plan') : pathname === item.href
             return (
               <Link
                 key={item.href}
@@ -53,7 +54,7 @@ export function Sidebar() {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#111111] border-t border-[#1f1f1f] flex items-center justify-around px-2 py-2">
         {navItems.map((item) => {
           const Icon = item.icon
-          const isActive = pathname === item.href
+          const isActive = item.href === '/study-plan' ? pathname.startsWith('/study-plan') : pathname === item.href
           return (
             <Link
               key={item.href}

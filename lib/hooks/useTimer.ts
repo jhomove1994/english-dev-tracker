@@ -2,6 +2,8 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { getLocalStorage, setLocalStorage, getDayKey } from '../utils'
+import { usePersistentStorage } from '@/lib/hooks/usePersistentStorage'
+import { PERSISTENT_STORAGE_KEY } from '@/lib/persistence'
 
 export interface StudySession {
   id: string
@@ -17,6 +19,16 @@ export function useTimer() {
   const [selectedActivity, setSelectedActivity] = useState('')
   const startTimeRef = useRef<number | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  const updateStreak = useCallback(() => {
+    const today = getDayKey()
+    const studyDays = getLocalStorage<string[]>('study_days', [])
+
+    if (!studyDays.includes(today)) {
+      const updatedStudyDays = [...studyDays, today]
+      setLocalStorage('study_days', updatedStudyDays)
+    }
+  }, [])
 
   const start = useCallback(() => {
     if (!selectedActivity) return
@@ -54,7 +66,7 @@ export function useTimer() {
     }
     setElapsed(0)
     startTimeRef.current = null
-  }, [elapsed, selectedActivity])
+  }, [elapsed, selectedActivity, updateStreak])
 
   const reset = useCallback(() => {
     setIsRunning(false)
@@ -64,15 +76,6 @@ export function useTimer() {
     setElapsed(0)
     startTimeRef.current = null
   }, [])
-
-  function updateStreak() {
-    const today = getDayKey()
-    const studyDays = getLocalStorage<string[]>('study_days', [])
-    if (!studyDays.includes(today)) {
-      studyDays.push(today)
-      setLocalStorage('study_days', studyDays)
-    }
-  }
 
   useEffect(() => {
     return () => {
@@ -93,18 +96,12 @@ export function useTimer() {
 }
 
 export function useStudySessions() {
-  const [sessions, setSessions] = useState<StudySession[]>([])
-
-  useEffect(() => {
-    setSessions(getLocalStorage<StudySession[]>('study_sessions', []))
-  }, [])
+  const [sessions] = usePersistentStorage<StudySession[]>(PERSISTENT_STORAGE_KEY.STUDY_SESSIONS, [])
 
   const todaySessions = sessions.filter(s => s.startedAt.startsWith(getDayKey()))
   const todaySeconds = todaySessions.reduce((acc, s) => acc + s.durationSeconds, 0)
 
-  const refresh = () => {
-    setSessions(getLocalStorage<StudySession[]>('study_sessions', []))
-  }
+  const refresh = () => undefined
 
   return { sessions, todaySessions, todaySeconds, refresh }
 }

@@ -1,24 +1,20 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { PHASES } from '@/lib/data/milestones'
-import { getLocalStorage, setLocalStorage, getDayKey } from '@/lib/utils'
+import { getDayKey } from '@/lib/utils'
+import { usePersistentStorage } from '@/lib/hooks/usePersistentStorage'
+import { PERSISTENT_STORAGE_KEY } from '@/lib/persistence'
 import { useStudyStats } from '@/lib/hooks/useStudyStats'
 import { useFlashcards } from '@/lib/hooks/useFlashcards'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Timer, CreditCard, CheckSquare, Mic, MessageSquare, BarChart3, Flame, Clock, Target, TrendingUp } from 'lucide-react'
+import { Timer, CreditCard, CheckSquare, Mic, MessageSquare, BarChart3, Flame, Clock, Target, TrendingUp, BookOpen } from 'lucide-react'
 
 export default function DashboardPage() {
-  const [currentPhase, setCurrentPhase] = useState(1)
-  const { totalHours, thisWeekHours, currentStreak, weeklyData, sessions } = useStudyStats()
+  const [currentPhase, setCurrentPhase] = usePersistentStorage<number>(PERSISTENT_STORAGE_KEY.USER_PHASE, 1)
+  const { thisWeekHours, currentStreak, weeklyData, sessions } = useStudyStats()
   const { masteredCount, totalCards } = useFlashcards()
-  const [completedMilestones, setCompletedMilestones] = useState<string[]>([])
-
-  useEffect(() => {
-    setCurrentPhase(getLocalStorage('user_phase', 1))
-    setCompletedMilestones(getLocalStorage('completed_milestones', []))
-  }, [])
+  const [completedMilestones] = usePersistentStorage<string[]>(PERSISTENT_STORAGE_KEY.COMPLETED_MILESTONES, [])
 
   const phase = PHASES.find(p => p.id === currentPhase) ?? PHASES[0]
   const phaseMilestones = phase.milestones
@@ -29,6 +25,7 @@ export default function DashboardPage() {
   const todayMinutes = Math.round(todaySessions.reduce((acc, s) => acc + s.durationSeconds, 0) / 60)
 
   const quickLinks = [
+    { href: '/study-plan', icon: BookOpen, label: 'Study Plan', color: 'text-emerald-400' },
     { href: '/timer', icon: Timer, label: 'Start Timer', color: 'text-blue-400' },
     { href: '/flashcards', icon: CreditCard, label: 'Flashcards', color: 'text-yellow-400' },
     { href: '/milestones', icon: CheckSquare, label: 'Milestones', color: 'text-green-400' },
@@ -51,7 +48,7 @@ export default function DashboardPage() {
               {[1, 2, 3, 4].map(p => (
                 <button
                   key={p}
-                  onClick={() => { setCurrentPhase(p); setLocalStorage('user_phase', p) }}
+                  onClick={() => setCurrentPhase(p)}
                   className={`w-8 h-8 rounded-full text-sm font-semibold transition-colors ${
                     p === currentPhase
                       ? 'bg-green-500 text-black'

@@ -1,17 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { getLocalStorage } from '../utils'
+import { usePersistentStorage } from '@/lib/hooks/usePersistentStorage'
+import { PERSISTENT_STORAGE_KEY } from '@/lib/persistence'
 import type { StudySession } from './useTimer'
 
 export function useStudyStats() {
-  const [sessions, setSessions] = useState<StudySession[]>([])
-  const [studyDays, setStudyDays] = useState<string[]>([])
-
-  useEffect(() => {
-    setSessions(getLocalStorage<StudySession[]>('study_sessions', []))
-    setStudyDays(getLocalStorage<string[]>('study_days', []))
-  }, [])
+  const [sessions] = usePersistentStorage<StudySession[]>(PERSISTENT_STORAGE_KEY.STUDY_SESSIONS, [])
+  const [studyDays] = usePersistentStorage<string[]>(PERSISTENT_STORAGE_KEY.STUDY_DAYS, [])
 
   const totalSeconds = sessions.reduce((acc, s) => acc + s.durationSeconds, 0)
   const totalHours = Math.round(totalSeconds / 3600 * 10) / 10
@@ -27,8 +22,11 @@ export function useStudyStats() {
   let bestStreak = 0
   let tempStreak = 0
 
-  const today = new Date().toISOString().split('T')[0]
-  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+  const todayDate = new Date()
+  const today = todayDate.toISOString().split('T')[0]
+  const yesterdayDate = new Date(todayDate)
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1)
+  const yesterday = yesterdayDate.toISOString().split('T')[0]
 
   if (sortedDays.length > 0) {
     const start = sortedDays[0] === today || sortedDays[0] === yesterday ? 0 : -1

@@ -1,23 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import { PHASES } from '@/lib/data/milestones'
-import { getLocalStorage, setLocalStorage } from '@/lib/utils'
 import { CheckCircle2, Circle, Lock } from 'lucide-react'
+import { usePersistentStorage } from '@/lib/hooks/usePersistentStorage'
+import { PERSISTENT_STORAGE_KEY } from '@/lib/persistence'
 
 export default function MilestonesPage() {
-  const [completed, setCompleted] = useState<string[]>([])
-  const [currentPhase, setCurrentPhase] = useState(1)
-
-  useEffect(() => {
-    setCompleted(getLocalStorage('completed_milestones', []))
-    setCurrentPhase(getLocalStorage('user_phase', 1))
-  }, [])
+  const [completed, setCompleted] = usePersistentStorage<string[]>(PERSISTENT_STORAGE_KEY.COMPLETED_MILESTONES, [])
+  const [currentPhase] = usePersistentStorage<number>(PERSISTENT_STORAGE_KEY.USER_PHASE, 1)
 
   const toggle = (id: string) => {
     const updated = completed.includes(id) ? completed.filter(c => c !== id) : [...completed, id]
     setCompleted(updated)
-    setLocalStorage('completed_milestones', updated)
   }
 
   return (

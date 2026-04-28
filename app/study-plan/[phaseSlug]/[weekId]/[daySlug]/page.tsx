@@ -1,0 +1,1083 @@
+'use client'
+
+import Link from 'next/link'
+import { useParams } from 'next/navigation'
+import { useMemo, useState } from 'react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  Bot,
+  CheckCircle2,
+  Circle,
+  Copy,
+  ExternalLink,
+  FileText,
+  Languages,
+  Lock,
+  Mic,
+  Plus,
+  Save,
+  Sparkles,
+  Target,
+  Trash2,
+  Video,
+} from 'lucide-react'
+import { ALL_STUDY_WEEKS, getPhaseBySlug } from '@/lib/data/study-plan'
+import {
+  DAY_AI_FEEDBACK_STORAGE_KEY,
+  buildWeekDayClasses,
+  DAY_CHECKS_STORAGE_KEY,
+  DAY_WRITING_STORAGE_KEY,
+  isDayUnlocked,
+  isPhaseUnlocked,
+  isWeekUnlocked,
+  LESSON_CHECKS_STORAGE_KEY,
+  WEEK_CHECKPOINTS_STORAGE_KEY,
+} from '@/lib/study-plan'
+import { cn } from '@/lib/utils'
+import {
+  CUSTOM_FLASHCARD_SAVE_RESULT,
+  addCustomFlashcard,
+  saveUniqueCustomFlashcard,
+} from '@/lib/custom-flashcards'
+import {
+  buildStudyErrorFlashcard,
+  createStudyErrorRecord,
+  getStudyErrors,
+  STUDY_ERROR_CATEGORY,
+  STUDY_ERROR_CATEGORY_LABEL,
+  STUDY_ERROR_STORAGE_KEY,
+  STUDY_ERROR_TRACK,
+  STUDY_ERROR_TRACK_LABEL,
+  type StudyErrorCategory,
+  type StudyErrorRecord,
+} from '@/lib/study-errors'
+import { usePersistentStorage } from '@/lib/hooks/usePersistentStorage'
+
+const STUDY_SUPPORT_VIEW = {
+  ORIGINAL: 'original',
+  SIMPLE: 'simple',
+  GRAMMAR: 'grammar',
+} as const
+
+type StudySupportView = (typeof STUDY_SUPPORT_VIEW)[keyof typeof STUDY_SUPPORT_VIEW]
+
+export default function StudyDayClassPage() {
+  const params = useParams<{ phaseSlug: string; weekId: string; daySlug: string }>()
+  const phase = getPhaseBySlug(params.phaseSlug)
+  const week = ALL_STUDY_WEEKS.find((item) => item.id === params.weekId && item.phaseSlug === params.phaseSlug)
+
+  const [completedLessons] = usePersistentStorage<string[]>(LESSON_CHECKS_STORAGE_KEY, [])
+  const [completedCheckpoints] = usePersistentStorage<string[]>(WEEK_CHECKPOINTS_STORAGE_KEY, [])
+  const [completedDayChecks, setCompletedDayChecks] = usePersistentStorage<string[]>(DAY_CHECKS_STORAGE_KEY, [])
+  const [writtenWork, setWrittenWork] = usePersistentStorage<Record<string, string>>(DAY_WRITING_STORAGE_KEY, {})
+  const [aiFeedback, setAiFeedback] = usePersistentStorage<Record<string, string>>(DAY_AI_FEEDBACK_STORAGE_KEY, {})
+  const [studyErrors, setStudyErrors] = usePersistentStorage<StudyErrorRecord[]>(STUDY_ERROR_STORAGE_KEY, getStudyErrors())
+  const [addedGlossaryIds, setAddedGlossaryIds] = useState<string[]>([])
+  const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null)
+  const [copyError, setCopyError] = useState<string | null>(null)
+  const [errorFlashcardStatus, setErrorFlashcardStatus] = useState<Record<string, string>>({})
+  const [supportModeEnabled, setSupportModeEnabled] = useState(true)
+  const [sectionSupportView, setSectionSupportView] = useState<Record<string, StudySupportView>>({})
+  const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
+
+  const phaseUnlocked = phase ? isPhaseUnlocked(phase.id - 1, completedLessons, completedCheckpoints, completedDayChecks) : false
+  const weekUnlocked = week
+    ? isWeekUnlocked(
+        ALL_STUDY_WEEKS.findIndex((item) => item.id === week.id),
+        completedLessons,
+        completedCheckpoints,
+        completedDayChecks
+      )
+    : false
+
+  const dayClasses = useMemo(() => (week ? buildWeekDayClasses(week) : []), [week])
+  const currentDayIndex = dayClasses.findIndex((dayClass) => dayClass.slug === params.daySlug)
+  const currentDay = currentDayIndex >= 0 ? dayClasses[currentDayIndex] : null
+  const dayUnlocked = week && currentDay ? isDayUnlocked(week, currentDayIndex, completedDayChecks) : false
+  const prevDay = currentDayIndex > 0 ? dayClasses[currentDayIndex - 1] : null
+  const nextDay = currentDayIndex >= 0 ? dayClasses[currentDayIndex + 1] : null
+  const currentDayErrors = useMemo(
+    () => studyErrors.filter((error) => error.dayId === (currentDay?.id ?? '')),
+    [studyErrors, currentDay?.id]
+  )
+
+  if (!phase || !week || !currentDay) {
+    return (
+      <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-6 text-sm text-gray-300">
+        Day class not found.
+      </div>
+    )
+  }
+
+  if (!phaseUnlocked || !weekUnlocked) {
+    return (
+      <div className="max-w-3xl space-y-4">
+        <Link href={`/study-plan/${phase.slug}`} className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white">
+          <ArrowLeft size={16} />
+          Back to phase
+        </Link>
+        <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-6">
+          <h2 className="text-xl font-semibold text-white">{phase.title}</h2>
+          <p className="mt-2 text-sm text-gray-400">
+            This class is still locked because the phase or the week is not available yet.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!dayUnlocked) {
+    return (
+      <div className="max-w-3xl space-y-4">
+        <Link href={`/study-plan/${phase.slug}`} className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white">
+          <ArrowLeft size={16} />
+          Back to phase
+        </Link>
+        <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-6">
+          <h2 className="text-xl font-semibold text-white">{currentDay.title}</h2>
+          <p className="mt-2 text-sm text-gray-400">
+            Complete the previous day first so the class sequence stays guided and cumulative.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const isDone = completedDayChecks.includes(currentDay.id)
+
+  const updateWriting = (activityId: string, value: string) => {
+    const updated = { ...writtenWork, [activityId]: value }
+    setWrittenWork(updated)
+  }
+
+  const updateAiFeedback = (fieldId: string, value: string) => {
+    const updated = { ...aiFeedback, [fieldId]: value }
+    setAiFeedback(updated)
+  }
+
+  const toggleDayDone = () => {
+    const updated = isDone
+      ? completedDayChecks.filter((id) => id !== currentDay.id)
+      : [...completedDayChecks, currentDay.id]
+
+    setCompletedDayChecks(updated)
+  }
+
+  const handleAddGlossaryCard = (termId: string, term: string, back: string) => {
+    const added = addCustomFlashcard({
+      id: `glossary-${termId}`,
+      front: term,
+      back,
+      category: 'Class glossary',
+    })
+
+    if (added) {
+      setAddedGlossaryIds((current) => [...current, termId])
+    }
+  }
+
+  const persistStudyErrors = (updated: StudyErrorRecord[]) => {
+    setStudyErrors(updated)
+  }
+
+  const handleAddStudyError = (track: typeof STUDY_ERROR_TRACK.WRITING | typeof STUDY_ERROR_TRACK.SPEAKING) => {
+    if (!currentDay) return
+
+    const updated = studyErrors.concat(
+      createStudyErrorRecord({
+        dayId: currentDay.id,
+        dayTitle: currentDay.title,
+        phaseSlug: phase.slug,
+        weekId: week.id,
+        track,
+      })
+    )
+
+    persistStudyErrors(updated)
+  }
+
+  const updateStudyError = <K extends keyof StudyErrorRecord>(errorId: string, field: K, value: StudyErrorRecord[K]) => {
+    const updated = studyErrors.map((error) =>
+      error.id === errorId
+        ? {
+            ...error,
+            [field]: value,
+            updatedAt: new Date().toISOString(),
+          }
+        : error
+    )
+
+    persistStudyErrors(updated)
+  }
+
+  const handleRemoveStudyError = (errorId: string) => {
+    persistStudyErrors(studyErrors.filter((error) => error.id !== errorId))
+  }
+
+  const handleAddStudyErrorFlashcard = (error: StudyErrorRecord) => {
+    if (!error.original.trim() || !error.corrected.trim()) {
+      return
+    }
+
+    const result = saveUniqueCustomFlashcard(buildStudyErrorFlashcard(error))
+
+    setErrorFlashcardStatus((current) => ({
+      ...current,
+      [error.id]: result,
+    }))
+
+    if (!error.flashcardAdded) {
+      updateStudyError(error.id, 'flashcardAdded', true)
+    }
+  }
+
+  const handleCopyPrompt = (promptId: string, prompt: string) => {
+    if (typeof navigator === 'undefined' || !navigator.clipboard) {
+      setCopyError('Clipboard is not available in this browser. Copy the prompt manually from the box.')
+      setCopiedPromptId(null)
+      return
+    }
+
+    void navigator.clipboard
+      .writeText(prompt)
+      .then(() => {
+        setCopiedPromptId(promptId)
+        setCopyError(null)
+      })
+      .catch((error: unknown) => {
+        setCopiedPromptId(null)
+        setCopyError(
+          error instanceof Error
+            ? `Clipboard failed: ${error.message}`
+            : 'Clipboard failed. Copy the prompt manually from the box.'
+        )
+      })
+  }
+
+  const errorCategoryOptions = Object.values(STUDY_ERROR_CATEGORY)
+  const guidedSectionId = activeSectionId ?? currentDay.sections[0]?.id ?? null
+  const guidedSectionIndex = currentDay.sections.findIndex((section) => section.id === guidedSectionId)
+
+  return (
+    <div className="max-w-5xl space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link href={`/study-plan/${phase.slug}`} className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white">
+          <ArrowLeft size={16} />
+          Back to {phase.title}
+        </Link>
+        <div className="inline-flex items-center gap-2 rounded-full border border-[#2a2a2a] bg-[#111111] px-3 py-1 text-xs text-gray-300">
+          Week {week.week} · Day {currentDay.day}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-green-400">{phase.title}</p>
+            <h2 className="mt-1 text-2xl font-semibold text-white">{currentDay.title}</h2>
+            <p className="mt-2 text-sm text-gray-400">{currentDay.objective}</p>
+            <p className="mt-2 text-sm text-gray-500">Focus: {currentDay.focus}</p>
+          </div>
+          <div className="rounded-xl border border-[#242424] bg-[#151515] px-4 py-3 text-sm text-gray-300">
+            Suggested class time: {currentDay.minutes}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Languages size={18} className="text-cyan-300" />
+              <h3 className="text-lg font-semibold text-white">Support mode for low grammar / vocabulary</h3>
+            </div>
+            <p className="mt-2 text-sm text-cyan-100">{currentDay.supportModeIntro}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSupportModeEnabled((current) => !current)}
+            className={cn(
+              'inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors',
+              supportModeEnabled
+                ? 'border-cyan-400/30 bg-cyan-400/10 text-cyan-100'
+                : 'border-[#2a2a2a] bg-[#111111] text-white hover:border-[#3a3a3a]'
+            )}
+          >
+            <Sparkles size={16} />
+            {supportModeEnabled ? 'Support mode enabled' : 'Enable support mode'}
+          </button>
+        </div>
+
+        {supportModeEnabled && (
+          <div className="mt-6 grid gap-6 xl:grid-cols-3">
+            <div className="rounded-xl border border-[#242424] bg-[#111111] p-4">
+              <p className="text-xs uppercase tracking-wide text-cyan-300">Prerequisite vocabulary</p>
+              <div className="mt-3 space-y-3">
+                {currentDay.prerequisites.vocabulary.map((item) => (
+                  <div key={item.term} className="rounded-lg border border-[#2a2a2a] bg-[#151515] p-3">
+                    <p className="font-medium text-white">{item.term}</p>
+                    <p className="mt-1 text-sm text-gray-300">{item.meaning}</p>
+                    <p className="mt-2 text-xs text-gray-500">{item.whyItMatters}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-[#242424] bg-[#111111] p-4">
+              <p className="text-xs uppercase tracking-wide text-cyan-300">Grammar before you start</p>
+              <div className="mt-3 space-y-3">
+                {currentDay.prerequisites.grammar.map((item) => (
+                  <div key={item.id} className="rounded-lg border border-[#2a2a2a] bg-[#151515] p-3">
+                    <p className="font-medium text-white">{item.title}</p>
+                    <p className="mt-1 text-sm text-cyan-100">{item.pattern}</p>
+                    <p className="mt-2 text-sm text-gray-300">{item.whenToUse}</p>
+                    <p className="mt-2 text-xs text-gray-500">Example: {item.example}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-[#242424] bg-[#111111] p-4">
+              <p className="text-xs uppercase tracking-wide text-cyan-300">Warm-up sequence</p>
+              <div className="mt-3 space-y-3">
+                {currentDay.prerequisites.warmUp.map((item) => (
+                  <div key={item} className="flex gap-2 text-sm text-gray-300">
+                    <span className="mt-1 text-cyan-300">•</span>
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 rounded-lg border border-[#2a2a2a] bg-[#151515] p-3 text-sm text-gray-300">
+                If the class still feels hard, stay with one sentence first. You do not need to finish a big paragraph to make real progress.
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-6">
+          <div className="flex items-center gap-2">
+            <Video size={18} className="text-red-400" />
+            <h3 className="text-lg font-semibold text-white">Recommended YouTube practice</h3>
+          </div>
+          <p className="mt-3 text-sm text-gray-400">
+            {currentDay.youtubeVideo.whyThisVideo}
+          </p>
+          <div className="mt-4 rounded-xl border border-[#242424] bg-[#151515] p-4">
+            <p className="text-xs uppercase tracking-wide text-red-400">{currentDay.youtubeVideo.channel}</p>
+            <h4 className="mt-1 font-medium text-white">{currentDay.youtubeVideo.title}</h4>
+            <a
+              href={currentDay.youtubeVideo.url}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 inline-flex items-center gap-2 rounded-lg border border-[#2a2a2a] bg-[#101010] px-3 py-2 text-sm text-white hover:border-[#3a3a3a]"
+            >
+              Open YouTube recommendation
+            </a>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-6">
+          <h3 className="text-lg font-semibold text-white">Class glossary</h3>
+          <p className="mt-2 text-sm text-gray-400">
+            If something is unclear, hover a term to open a deeper teaching card: meaning, class use, contrast, and mini practice. You can also send it directly to Flashcards.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            {currentDay.glossary.map((item) => {
+              const alreadyAdded = addedGlossaryIds.includes(item.id)
+
+              return (
+                <div key={item.id} className="group relative">
+                  <div
+                    tabIndex={0}
+                    className="rounded-full border border-[#2a2a2a] bg-[#151515] px-3 py-2 text-sm text-white outline-none transition-colors group-hover:border-green-500/40 group-focus-within:border-green-500/40"
+                  >
+                    {item.term}
+                  </div>
+                  <div className="pointer-events-none absolute left-0 top-full z-10 mt-2 hidden w-[28rem] rounded-xl border border-[#2a2a2a] bg-[#101010] p-4 text-sm text-gray-300 shadow-2xl group-hover:block group-focus-within:block">
+                    <p className="font-medium text-white">{item.term}</p>
+                    <div className="mt-3 space-y-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Plain meaning</p>
+                        <p className="mt-1">{item.definition}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">In this class</p>
+                        <p className="mt-1">{item.classMeaning}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Use it when</p>
+                        <p className="mt-1">{item.useItWhen}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Do not confuse it with</p>
+                        <p className="mt-1">{item.contrast}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Example</p>
+                        <p className="mt-1 text-gray-400">{item.example}</p>
+                      </div>
+                      <div className="rounded-lg border border-[#2a2a2a] bg-[#151515] p-3">
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Mini practice</p>
+                        <p className="mt-1">{item.miniPractice}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleAddGlossaryCard(item.id, item.term, item.flashcardBack)}
+                      className={cn(
+                        'pointer-events-auto mt-3 inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors',
+                        alreadyAdded
+                          ? 'border-green-500/30 bg-green-500/10 text-green-300'
+                          : 'border-[#2a2a2a] bg-[#151515] text-white hover:border-[#3a3a3a]'
+                      )}
+                    >
+                      {alreadyAdded ? <CheckCircle2 size={16} /> : <Plus size={16} />}
+                      {alreadyAdded ? 'Sent to Flashcards' : 'Send to Flashcards'}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {supportModeEnabled && currentDay.sections.length > 1 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#1f1f1f] bg-[#111111] p-4">
+            <div className="text-sm text-gray-300">
+              Guided reading section {guidedSectionIndex + 1 > 0 ? guidedSectionIndex + 1 : 1} of {currentDay.sections.length}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                disabled={guidedSectionIndex <= 0}
+                onClick={() => setActiveSectionId(currentDay.sections[Math.max(0, guidedSectionIndex - 1)]?.id ?? guidedSectionId)}
+                className="inline-flex items-center gap-2 rounded-lg border border-[#2a2a2a] bg-[#151515] px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:text-gray-600"
+              >
+                <ArrowLeft size={16} />
+                Previous section
+              </button>
+              <button
+                type="button"
+                disabled={guidedSectionIndex < 0 || guidedSectionIndex >= currentDay.sections.length - 1}
+                onClick={() => setActiveSectionId(currentDay.sections[Math.min(currentDay.sections.length - 1, guidedSectionIndex + 1)]?.id ?? guidedSectionId)}
+                className="inline-flex items-center gap-2 rounded-lg border border-[#2a2a2a] bg-[#151515] px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:text-gray-600"
+              >
+                Next section
+                <ArrowRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+        {currentDay.sections.map((section) => (
+          <div
+            key={section.id}
+            className={cn(
+              'rounded-xl border bg-[#111111] p-6',
+              supportModeEnabled && section.id === guidedSectionId ? 'border-cyan-500/30' : 'border-[#1f1f1f]'
+            )}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <h3 className="text-lg font-semibold text-white">{section.title}</h3>
+              {supportModeEnabled && (
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: STUDY_SUPPORT_VIEW.ORIGINAL, label: 'Original' },
+                    { id: STUDY_SUPPORT_VIEW.SIMPLE, label: 'Simple English' },
+                    { id: STUDY_SUPPORT_VIEW.GRAMMAR, label: 'Grammar coach' },
+                  ].map((viewOption) => (
+                    <button
+                      key={viewOption.id}
+                      type="button"
+                      onClick={() =>
+                        setSectionSupportView((current) => ({
+                          ...current,
+                          [section.id]: viewOption.id,
+                        }))
+                      }
+                      className={cn(
+                        'rounded-full border px-3 py-1 text-xs transition-colors',
+                        (sectionSupportView[section.id] ?? STUDY_SUPPORT_VIEW.ORIGINAL) === viewOption.id
+                          ? 'border-cyan-400/30 bg-cyan-400/10 text-cyan-100'
+                          : 'border-[#2a2a2a] bg-[#151515] text-gray-300 hover:border-[#3a3a3a]'
+                      )}
+                    >
+                      {viewOption.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {(sectionSupportView[section.id] ?? STUDY_SUPPORT_VIEW.ORIGINAL) === STUDY_SUPPORT_VIEW.SIMPLE ? (
+              <div className="mt-4 space-y-4">
+                <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
+                  <p className="text-xs uppercase tracking-wide text-cyan-300">Simple explanation</p>
+                  <div className="mt-3 space-y-2">
+                    {section.support.simpleExplanation.map((item) => (
+                      <p key={item} className="text-sm text-gray-200">{item}</p>
+                    ))}
+                  </div>
+                  <p className="mt-4 text-sm text-cyan-100">{section.support.spanishHint}</p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-xl border border-[#242424] bg-[#151515] p-4">
+                    <p className="text-xs uppercase tracking-wide text-gray-500">Key words for this section</p>
+                    <div className="mt-3 space-y-3">
+                      {section.support.keyVocabulary.map((item) => (
+                        <div key={item.term}>
+                          <p className="font-medium text-white">{item.term}</p>
+                          <p className="mt-1 text-sm text-gray-300">{item.meaning}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-[#242424] bg-[#151515] p-4">
+                    <p className="text-xs uppercase tracking-wide text-gray-500">Check yourself</p>
+                    <p className="mt-3 text-sm text-gray-200">{section.support.checkQuestion}</p>
+                  </div>
+                </div>
+              </div>
+            ) : (sectionSupportView[section.id] ?? STUDY_SUPPORT_VIEW.ORIGINAL) === STUDY_SUPPORT_VIEW.GRAMMAR ? (
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                {section.support.grammarCoach.map((item) => (
+                  <div key={item.id} className="rounded-xl border border-[#242424] bg-[#151515] p-4">
+                    <p className="font-medium text-white">{item.title}</p>
+                    <p className="mt-2 text-sm text-cyan-100">{item.pattern}</p>
+                    <p className="mt-3 text-sm text-gray-300">{item.whenToUse}</p>
+                    <p className="mt-2 text-sm text-gray-400">Example: {item.example}</p>
+                    <p className="mt-2 text-xs text-gray-500">Common error: {item.commonError}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                <div className="mt-4 space-y-3">
+                  {section.paragraphs.map((paragraph) => (
+                    <p key={paragraph} className="text-sm leading-7 text-gray-300">{paragraph}</p>
+                  ))}
+                </div>
+                {section.bullets && section.bullets.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {section.bullets.map((item) => (
+                      <div key={item} className="flex gap-2 text-sm text-gray-300">
+                        <span className="mt-1 text-green-400">•</span>
+                        <span>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-6">
+        <h3 className="text-lg font-semibold text-white">Written work inside the class</h3>
+        <p className="mt-2 text-sm text-gray-400">
+          These activities are dynamic: write directly here and your answers stay saved inside the app.
+        </p>
+        <div className="mt-4 space-y-5">
+          {currentDay.writtenActivities.map((activity) => (
+            <div key={activity.id} className="rounded-xl border border-[#242424] bg-[#151515] p-4">
+              <h4 className="font-medium text-white">{activity.title}</h4>
+              <p className="mt-2 text-sm text-gray-400">{activity.instructions}</p>
+              {supportModeEnabled && (
+                <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+                  <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
+                    <p className="text-xs uppercase tracking-wide text-cyan-300">Scaffolded steps</p>
+                    <div className="mt-3 space-y-2">
+                      {activity.support.steps.map((item) => (
+                        <div key={item} className="flex gap-2 text-sm text-gray-200">
+                          <span className="mt-1 text-cyan-300">•</span>
+                          <span>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-[#242424] bg-[#101010] p-4">
+                    <p className="text-xs uppercase tracking-wide text-gray-500">Sentence starters</p>
+                    <div className="mt-3 space-y-2">
+                      {activity.support.sentenceStarters.map((item) => (
+                        <p key={item} className="text-sm text-gray-300">{item}</p>
+                      ))}
+                    </div>
+                    <p className="mt-4 text-xs text-cyan-100">{activity.support.canDoCheck}</p>
+                  </div>
+                </div>
+              )}
+              <textarea
+                value={writtenWork[activity.id] ?? ''}
+                onChange={(event) => updateWriting(activity.id, event.target.value)}
+                placeholder={activity.placeholder}
+                rows={8}
+                className="mt-4 w-full rounded-xl border border-[#2a2a2a] bg-[#101010] px-4 py-3 text-sm text-gray-200 placeholder:text-gray-600 focus:border-green-500/40 focus:outline-none"
+              />
+              <div className="mt-3 inline-flex items-center gap-2 text-xs text-gray-500">
+                <Save size={14} />
+                Saved automatically in this browser
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-6">
+        <div className="flex items-center gap-2">
+          <Bot size={18} className="text-cyan-400" />
+          <h3 className="text-lg font-semibold text-white">Validate this class with free AI</h3>
+        </div>
+        <p className="mt-3 text-sm text-gray-400">{currentDay.aiValidation.intro}</p>
+        <div className="mt-4 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4 text-sm text-cyan-100">
+          {currentDay.aiValidation.honestyNote}
+        </div>
+
+        <div className="mt-6 grid gap-6 xl:grid-cols-2">
+          {[currentDay.aiValidation.writing, currentDay.aiValidation.speaking].map((track) => {
+            const TrackIcon = track.mode === 'writing' ? FileText : Mic
+
+            return (
+              <div key={track.mode} className="rounded-xl border border-[#242424] bg-[#151515] p-5">
+                <div className="flex items-center gap-2">
+                  <TrackIcon size={18} className="text-green-400" />
+                  <h4 className="font-semibold text-white">{track.title}</h4>
+                </div>
+                <p className="mt-2 text-sm text-gray-400">{track.objective}</p>
+
+                <div className="mt-5">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Recommended free tools</p>
+                  <div className="mt-3 space-y-3">
+                    {track.toolRecommendations.map((tool) => (
+                      <div key={tool.id} className="rounded-xl border border-[#2a2a2a] bg-[#101010] p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-white">{tool.name}</p>
+                            <p className="mt-1 text-sm text-gray-400">{tool.bestFor}</p>
+                          </div>
+                          <a
+                            href={tool.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-2 rounded-lg border border-[#2a2a2a] bg-[#151515] px-3 py-2 text-sm text-white hover:border-[#3a3a3a]"
+                          >
+                            Open
+                            <ExternalLink size={14} />
+                          </a>
+                        </div>
+                        <p className="mt-3 text-sm text-gray-500">{tool.whyItHelps}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-5">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Suggested workflow</p>
+                  <div className="mt-3 space-y-2">
+                    {track.workflow.map((step) => (
+                      <div key={step} className="flex gap-2 text-sm text-gray-300">
+                        <span className="mt-1 text-green-400">•</span>
+                        <span>{step}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-5">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">What the AI should evaluate</p>
+                  <div className="mt-3 space-y-2">
+                    {track.rubric.map((item) => (
+                      <div key={item} className="flex gap-2 text-sm text-gray-300">
+                        <Target size={15} className="mt-0.5 shrink-0 text-green-400" />
+                        <span>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-5 rounded-xl border border-[#2a2a2a] bg-[#101010] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-white">{track.prompt.label}</p>
+                      <p className="mt-1 text-sm text-gray-400">{track.prompt.intro}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyPrompt(track.prompt.id, track.prompt.template)}
+                      className={cn(
+                        'inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors',
+                        copiedPromptId === track.prompt.id
+                          ? 'border-green-500/30 bg-green-500/10 text-green-300'
+                          : 'border-[#2a2a2a] bg-[#151515] text-white hover:border-[#3a3a3a]'
+                      )}
+                    >
+                      {copiedPromptId === track.prompt.id ? <CheckCircle2 size={16} /> : <Copy size={16} />}
+                      {copiedPromptId === track.prompt.id ? 'Prompt copied' : 'Copy prompt'}
+                    </button>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    {track.prompt.instructions.map((instruction) => (
+                      <div key={instruction} className="flex gap-2 text-sm text-gray-400">
+                        <span className="mt-1 text-cyan-400">•</span>
+                        <span>{instruction}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {copyError && (
+                    <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+                      {copyError}
+                    </div>
+                  )}
+                  <pre className="mt-4 overflow-x-auto whitespace-pre-wrap rounded-xl border border-[#2a2a2a] bg-[#0d0d0d] p-4 text-xs leading-6 text-gray-300">
+                    {track.prompt.template}
+                  </pre>
+                </div>
+
+                <div className="mt-5 space-y-4">
+                  {track.savedFields.map((field) => (
+                    <div key={field.id}>
+                      <label className="block text-sm font-medium text-white" htmlFor={field.id}>
+                        {field.label}
+                      </label>
+                      <p className="mt-1 text-xs text-gray-500">{field.helper}</p>
+                      <textarea
+                        id={field.id}
+                        value={aiFeedback[field.id] ?? ''}
+                        onChange={(event) => updateAiFeedback(field.id, event.target.value)}
+                        placeholder={field.placeholder}
+                        rows={4}
+                        className="mt-3 w-full rounded-xl border border-[#2a2a2a] bg-[#101010] px-4 py-3 text-sm text-gray-200 placeholder:text-gray-600 focus:border-green-500/40 focus:outline-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 inline-flex items-center gap-2 text-xs text-gray-500">
+                  <Save size={14} />
+                  Validation notes are saved automatically in this browser
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Error extraction lab</h3>
+            <p className="mt-2 text-sm text-gray-400">
+              Convert the most important feedback into structured mistakes: what you said, what is better, why it matters, and what to practice next.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => handleAddStudyError(STUDY_ERROR_TRACK.WRITING)}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#2a2a2a] bg-[#151515] px-4 py-2 text-sm text-white hover:border-[#3a3a3a]"
+            >
+              <Plus size={16} />
+              Add writing mistake
+            </button>
+            <button
+              type="button"
+              onClick={() => handleAddStudyError(STUDY_ERROR_TRACK.SPEAKING)}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#2a2a2a] bg-[#151515] px-4 py-2 text-sm text-white hover:border-[#3a3a3a]"
+            >
+              <Plus size={16} />
+              Add speaking mistake
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 rounded-xl border border-[#242424] bg-[#151515] p-4 text-sm text-gray-300">
+          Best workflow: save your AI feedback above, then extract only the mistakes that repeat or that clearly block your communication. Those are the ones worth practicing with flashcards and revision.
+        </div>
+
+        {currentDayErrors.length === 0 ? (
+          <div className="mt-5 rounded-xl border border-dashed border-[#2a2a2a] bg-[#151515] p-6 text-sm text-gray-500">
+            No extracted mistakes yet for this class. Add at least one mistake from writing or speaking feedback so the academy can start building your personal weak-point history.
+          </div>
+        ) : (
+          <div className="mt-5 space-y-4">
+            {currentDayErrors.map((error) => {
+              const flashcardStatus = errorFlashcardStatus[error.id]
+              const flashcardLinked = error.flashcardAdded || flashcardStatus === CUSTOM_FLASHCARD_SAVE_RESULT.EXISTS
+
+              return (
+                <div key={error.id} className="rounded-xl border border-[#242424] bg-[#151515] p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-[#2a2a2a] bg-[#101010] px-3 py-1 text-xs text-gray-300">
+                      <span>{STUDY_ERROR_TRACK_LABEL[error.track]}</span>
+                      <span className="text-gray-600">·</span>
+                      <span>{STUDY_ERROR_CATEGORY_LABEL[error.category]}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveStudyError(error.id)}
+                      className="inline-flex items-center gap-2 rounded-lg border border-[#2a2a2a] bg-[#101010] px-3 py-2 text-sm text-gray-300 hover:border-[#3a3a3a] hover:text-white"
+                    >
+                      <Trash2 size={16} />
+                      Remove
+                    </button>
+                  </div>
+
+                  {flashcardLinked ? (
+                    <div className="mt-4 space-y-4">
+                      <div className="rounded-xl border border-green-500/20 bg-green-500/5 p-4">
+                        <p className="text-sm font-medium text-green-300">Saved to Flashcards</p>
+                        <p className="mt-2 text-sm text-gray-300">
+                          This correction was saved in <span className="text-white">Flashcards → Personal corrections</span>.
+                        </p>
+                        <div className="mt-4 grid gap-4 md:grid-cols-2">
+                          <div>
+                            <p className="text-xs uppercase tracking-wide text-gray-500">Original</p>
+                            <p className="mt-2 text-sm text-white">{error.original}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase tracking-wide text-gray-500">Better version</p>
+                            <p className="mt-2 text-sm text-green-300">{error.corrected}</p>
+                          </div>
+                        </div>
+                        {(error.explanation || error.nextAction) && (
+                          <div className="mt-4 grid gap-4 md:grid-cols-2">
+                            {error.explanation && (
+                              <div>
+                                <p className="text-xs uppercase tracking-wide text-gray-500">Why it matters</p>
+                                <p className="mt-2 text-sm text-gray-300">{error.explanation}</p>
+                              </div>
+                            )}
+                            {error.nextAction && (
+                              <div>
+                                <p className="text-xs uppercase tracking-wide text-gray-500">Next repetition target</p>
+                                <p className="mt-2 text-sm text-gray-300">{error.nextAction}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <div className="mt-4 flex flex-wrap gap-3">
+                          <Link
+                            href="/flashcards"
+                            className="inline-flex items-center gap-2 rounded-lg border border-[#2a2a2a] bg-[#101010] px-4 py-2 text-sm text-white hover:border-[#3a3a3a]"
+                          >
+                            Open Flashcards
+                            <ArrowRight size={16} />
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => updateStudyError(error.id, 'flashcardAdded', false)}
+                            className="inline-flex items-center gap-2 rounded-lg border border-[#2a2a2a] bg-[#101010] px-4 py-2 text-sm text-gray-300 hover:border-[#3a3a3a] hover:text-white"
+                          >
+                            Edit saved note
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mt-4 grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
+                        <div>
+                          <label className="block text-sm font-medium text-white" htmlFor={`${error.id}-category`}>
+                            Weak point type
+                          </label>
+                          <select
+                            id={`${error.id}-category`}
+                            value={error.category}
+                            onChange={(event) =>
+                              updateStudyError(error.id, 'category', event.target.value as StudyErrorCategory)
+                            }
+                            className="mt-3 w-full rounded-xl border border-[#2a2a2a] bg-[#101010] px-4 py-3 text-sm text-gray-200 focus:border-green-500/40 focus:outline-none"
+                          >
+                            {errorCategoryOptions.map((category) => (
+                              <option key={category} value={category}>
+                                {STUDY_ERROR_CATEGORY_LABEL[category]}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div>
+                            <label className="block text-sm font-medium text-white" htmlFor={`${error.id}-original`}>
+                              Original sentence or idea
+                            </label>
+                            <textarea
+                              id={`${error.id}-original`}
+                              value={error.original}
+                              onChange={(event) => updateStudyError(error.id, 'original', event.target.value)}
+                              placeholder="Example: I have 5 years working in backend..."
+                              rows={4}
+                              className="mt-3 w-full rounded-xl border border-[#2a2a2a] bg-[#101010] px-4 py-3 text-sm text-gray-200 placeholder:text-gray-600 focus:border-green-500/40 focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-white" htmlFor={`${error.id}-corrected`}>
+                              Better version
+                            </label>
+                            <textarea
+                              id={`${error.id}-corrected`}
+                              value={error.corrected}
+                              onChange={(event) => updateStudyError(error.id, 'corrected', event.target.value)}
+                              placeholder="Example: I have been working in backend for 5 years..."
+                              rows={4}
+                              className="mt-3 w-full rounded-xl border border-[#2a2a2a] bg-[#101010] px-4 py-3 text-sm text-gray-200 placeholder:text-gray-600 focus:border-green-500/40 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid gap-4 md:grid-cols-2">
+                        <div>
+                          <label className="block text-sm font-medium text-white" htmlFor={`${error.id}-explanation`}>
+                            Why this matters
+                          </label>
+                          <textarea
+                            id={`${error.id}-explanation`}
+                            value={error.explanation}
+                            onChange={(event) => updateStudyError(error.id, 'explanation', event.target.value)}
+                            placeholder="Explain the pattern: grammar, clarity, or why the original sounded unnatural..."
+                            rows={4}
+                            className="mt-3 w-full rounded-xl border border-[#2a2a2a] bg-[#101010] px-4 py-3 text-sm text-gray-200 placeholder:text-gray-600 focus:border-green-500/40 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-white" htmlFor={`${error.id}-next-action`}>
+                            Next repetition target
+                          </label>
+                          <textarea
+                            id={`${error.id}-next-action`}
+                            value={error.nextAction}
+                            onChange={(event) => updateStudyError(error.id, 'nextAction', event.target.value)}
+                            placeholder="Example: repeat this structure aloud 5 times in project-based examples..."
+                            rows={4}
+                            className="mt-3 w-full rounded-xl border border-[#2a2a2a] bg-[#101010] px-4 py-3 text-sm text-gray-200 placeholder:text-gray-600 focus:border-green-500/40 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                        <div className="inline-flex items-center gap-2 text-xs text-gray-500">
+                          <Save size={14} />
+                          Error note saved automatically in this browser
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleAddStudyErrorFlashcard(error)}
+                          disabled={!error.original.trim() || !error.corrected.trim()}
+                          className={cn(
+                            'inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors',
+                            'border-[#2a2a2a] bg-[#101010] text-white hover:border-[#3a3a3a] disabled:cursor-not-allowed disabled:text-gray-600'
+                          )}
+                        >
+                          <Plus size={16} />
+                          Send mistake to Flashcards
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-6">
+          <h3 className="text-lg font-semibold text-white">Daily checks before you mark this class done</h3>
+          <div className="mt-4 space-y-3">
+            {currentDay.checks.map((check) => (
+              <div key={check} className="flex gap-3 rounded-xl border border-[#242424] bg-[#151515] p-4 text-sm text-gray-300">
+                <Target size={16} className="mt-0.5 shrink-0 text-green-400" />
+                <span>{check}</span>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={toggleDayDone}
+            className={cn(
+              'mt-5 inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors',
+              isDone
+                ? 'border-green-500/30 bg-green-500/10 text-green-300'
+                : 'border-[#2a2a2a] bg-[#151515] text-gray-200 hover:border-[#3a3a3a]'
+            )}
+          >
+            {isDone ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+            {isDone ? 'Day marked as complete' : 'Mark day as complete'}
+          </button>
+        </div>
+
+        <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-6">
+          <h3 className="text-lg font-semibold text-white">Referenced material for this class</h3>
+          <div className="mt-4 space-y-4">
+            {currentDay.references.map((reference) => (
+              <div key={reference.id} className="rounded-xl border border-[#242424] bg-[#151515] p-4">
+                <p className="text-xs uppercase tracking-wide text-blue-400">{reference.channel}</p>
+                <h4 className="mt-1 font-medium text-white">{reference.title}</h4>
+                <p className="mt-2 text-sm text-gray-400">{reference.whyToday}</p>
+                <a
+                  href={reference.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-4 inline-flex items-center gap-2 rounded-lg border border-[#2a2a2a] bg-[#101010] px-3 py-2 text-sm text-white hover:border-[#3a3a3a]"
+                >
+                  Open reference
+                </a>
+              </div>
+            ))}
+
+            <div className="rounded-xl border border-[#242424] bg-[#151515] p-4 text-sm text-gray-300">
+              After this class, return to the week page to mark lesson evidence and weekly checkpoints when you can perform them honestly.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#1f1f1f] bg-[#111111] p-4">
+        <div className="text-sm text-gray-400">
+          {prevDay ? `Previous: ${prevDay.title}` : 'This is the first class of the week.'}
+        </div>
+        <div className="flex flex-wrap gap-3">
+          {prevDay && (
+            <Link
+              href={`/study-plan/${phase.slug}/${week.id}/${prevDay.slug}`}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#2a2a2a] bg-[#151515] px-4 py-2 text-sm text-white hover:border-[#3a3a3a]"
+            >
+              <ArrowLeft size={16} />
+              Previous day
+            </Link>
+          )}
+          {nextDay ? (
+            completedDayChecks.includes(currentDay.id) ? (
+              <Link
+                href={`/study-plan/${phase.slug}/${week.id}/${nextDay.slug}`}
+                className="inline-flex items-center gap-2 rounded-lg border border-[#2a2a2a] bg-[#151515] px-4 py-2 text-sm text-white hover:border-[#3a3a3a]"
+              >
+                Next day
+                <ArrowRight size={16} />
+              </Link>
+            ) : (
+              <div className="inline-flex items-center gap-2 rounded-lg border border-[#2a2a2a] bg-[#151515] px-4 py-2 text-sm text-gray-500">
+                <Lock size={16} />
+                Mark this class complete to unlock the next day
+              </div>
+            )
+          ) : (
+            <Link
+              href={`/study-plan/${phase.slug}`}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#2a2a2a] bg-[#151515] px-4 py-2 text-sm text-white hover:border-[#3a3a3a]"
+            >
+              Return to week dashboard
+              <ArrowRight size={16} />
+            </Link>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
