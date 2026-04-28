@@ -35,6 +35,7 @@ export default function FlashcardsPage() {
 
   const restart = () => { setCurrentIndex(0); setIsFlipped(false); setSessionComplete(false); setShowPronunciation(false) }
   const categoryOptions = ['All', ...categories]
+  const toggleBrowseMode = () => { setBrowseMode(m => !m); setCurrentIndex(0); setIsFlipped(false); setSessionComplete(false) }
 
   const togglePlay = (id: string, blobUrl: string) => {
     if (playingRecId === id) {
@@ -66,7 +67,7 @@ export default function FlashcardsPage() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => { setBrowseMode(m => !m); setCurrentIndex(0); setIsFlipped(false); setSessionComplete(false) }}
+            onClick={toggleBrowseMode}
             title={browseMode ? 'Browse mode ON – showing all cards' : 'Switch to Browse All mode'}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${browseMode ? 'border-orange-500 bg-orange-500/10 text-orange-400' : 'border-[#2a2a2a] text-gray-500 hover:text-gray-300'}`}
           >

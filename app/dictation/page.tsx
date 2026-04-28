@@ -54,6 +54,9 @@ const DIFF_COLORS = {
   hard: 'text-red-400 bg-red-500/10 border-red-500/30',
 } as const
 
+const HISTORY_DISPLAY_LIMIT = 15
+const HISTORY_AVG_WINDOW = 20
+
 function normalize(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim()
 }
@@ -121,7 +124,7 @@ export default function DictationPage() {
   const percentage = result ? Math.round((result.correct / result.total) * 100) : 0
 
   const avgScore = history.length > 0
-    ? Math.round(history.slice(0, 20).reduce((acc, r) => acc + r.percentage, 0) / Math.min(history.length, 20))
+    ? Math.round(history.slice(0, HISTORY_AVG_WINDOW).reduce((acc, r) => acc + r.percentage, 0) / Math.min(history.length, HISTORY_AVG_WINDOW))
     : null
 
   return (
@@ -241,7 +244,7 @@ export default function DictationPage() {
           </button>
           {showHistory && (
             <div className="mt-4 space-y-2">
-              {history.slice(0, 15).map(r => (
+              {history.slice(0, HISTORY_DISPLAY_LIMIT).map(r => (
                 <div key={r.id} className="flex items-center justify-between bg-[#1a1a1a] rounded-lg px-3 py-2 text-sm">
                   <div className="flex items-center gap-3 min-w-0">
                     <span className={`font-bold shrink-0 ${r.percentage >= 80 ? 'text-green-400' : r.percentage >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>{r.percentage}%</span>

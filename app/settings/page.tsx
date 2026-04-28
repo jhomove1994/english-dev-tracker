@@ -85,8 +85,9 @@ export default function SettingsPage() {
         setLocalStorage(key, value)
       }
 
-      setImportMessage(`✅ Imported ${validEntries.length} storage keys from backup (${data.exportedAt ? new Date(data.exportedAt).toLocaleDateString() : 'unknown date'}). Reload the page to see your data.`)
+      setImportMessage(`✅ Imported ${validEntries.length} storage keys from backup (${data.exportedAt ? new Date(data.exportedAt).toLocaleDateString() : 'unknown date'}). Reloading…`)
       setImportStatus('done')
+      setTimeout(() => { window.location.reload() }, 1500)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
       setImportMessage(`❌ Import failed: ${msg}`)
