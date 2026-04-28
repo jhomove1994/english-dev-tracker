@@ -21,6 +21,7 @@ import {
   Target,
   Trash2,
   Video,
+  Volume2,
 } from 'lucide-react'
 import { ALL_STUDY_WEEKS, getPhaseBySlug } from '@/lib/data/study-plan'
 import {
@@ -53,6 +54,7 @@ import {
   type StudyErrorRecord,
 } from '@/lib/study-errors'
 import { usePersistentStorage } from '@/lib/hooks/usePersistentStorage'
+import { useSpeech } from '@/lib/hooks/useSpeech'
 
 const STUDY_SUPPORT_VIEW = {
   ORIGINAL: 'original',
@@ -80,6 +82,7 @@ export default function StudyDayClassPage() {
   const [supportModeEnabled, setSupportModeEnabled] = useState(true)
   const [sectionSupportView, setSectionSupportView] = useState<Record<string, StudySupportView>>({})
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
+  const { speak, isSupported: ttsSupported } = useSpeech()
 
   const phaseUnlocked = phase ? isPhaseUnlocked(phase.id - 1, completedLessons, completedCheckpoints, completedDayChecks) : false
   const weekUnlocked = week
@@ -397,7 +400,14 @@ export default function StudyDayClassPage() {
                     {item.term}
                   </div>
                   <div className="pointer-events-none absolute left-0 top-full z-10 mt-2 hidden w-[28rem] rounded-xl border border-[#2a2a2a] bg-[#101010] p-4 text-sm text-gray-300 shadow-2xl group-hover:block group-focus-within:block">
-                    <p className="font-medium text-white">{item.term}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-white flex-1">{item.term}</p>
+                      {ttsSupported && (
+                        <button type="button" onClick={() => speak(item.term)} className="pointer-events-auto w-7 h-7 flex items-center justify-center rounded-full border border-[#333] text-gray-400 hover:text-green-400 hover:border-green-500/40 transition-colors" title="Hear pronunciation">
+                          <Volume2 size={13} />
+                        </button>
+                      )}
+                    </div>
                     <div className="mt-3 space-y-3">
                       <div>
                         <p className="text-xs uppercase tracking-wide text-gray-500">Plain meaning</p>
@@ -558,15 +568,27 @@ export default function StudyDayClassPage() {
               <>
                 <div className="mt-4 space-y-3">
                   {section.paragraphs.map((paragraph) => (
-                    <p key={paragraph} className="text-sm leading-7 text-gray-300">{paragraph}</p>
+                    <div key={paragraph} className="flex items-start gap-2 group">
+                      <p className="text-sm leading-7 text-gray-300 flex-1">{paragraph}</p>
+                      {ttsSupported && (
+                        <button onClick={() => speak(paragraph)} className="opacity-0 group-hover:opacity-100 shrink-0 mt-1 w-6 h-6 flex items-center justify-center rounded-full border border-[#2a2a2a] text-gray-500 hover:text-green-400 hover:border-green-500/40 transition-all" title="Read aloud">
+                          <Volume2 size={11} />
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
                 {section.bullets && section.bullets.length > 0 && (
                   <div className="mt-4 space-y-2">
                     {section.bullets.map((item) => (
-                      <div key={item} className="flex gap-2 text-sm text-gray-300">
-                        <span className="mt-1 text-green-400">•</span>
-                        <span>{item}</span>
+                      <div key={item} className="flex gap-2 text-sm text-gray-300 group">
+                        <span className="mt-1 text-green-400 shrink-0">•</span>
+                        <span className="flex-1">{item}</span>
+                        {ttsSupported && (
+                          <button onClick={() => speak(item)} className="opacity-0 group-hover:opacity-100 shrink-0 mt-0.5 w-6 h-6 flex items-center justify-center rounded-full border border-[#2a2a2a] text-gray-500 hover:text-green-400 hover:border-green-500/40 transition-all" title="Read aloud">
+                            <Volume2 size={11} />
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
