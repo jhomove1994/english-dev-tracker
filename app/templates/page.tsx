@@ -84,6 +84,10 @@ const TEMPLATES: Template[] = [
 
 const CATEGORIES = Array.from(new Set(TEMPLATES.map(t => t.category)))
 
+// Approximate ms per character for TTS duration estimation (used to clear speaking state)
+const TTS_MS_PER_CHAR = 65
+const TTS_MIN_MS = 2000
+
 export default function TemplatesPage() {
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [expandedId, setExpandedId] = useState<string | null>(TEMPLATES[0].id)
@@ -108,7 +112,7 @@ export default function TemplatesPage() {
     if (speakingText === text) { stop(); setSpeakingText(null); return }
     setSpeakingText(text)
     speak(text)
-    const ms = Math.max(2000, text.length * 65)
+    const ms = Math.max(TTS_MIN_MS, text.length * TTS_MS_PER_CHAR)
     setTimeout(() => setSpeakingText(null), ms)
   }
 

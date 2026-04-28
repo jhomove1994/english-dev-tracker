@@ -111,7 +111,7 @@ export default function FlashcardsPage() {
               <p className="text-xl font-medium text-white leading-relaxed">
                 {isFlipped
                   ? (immersionMode
-                    ? currentCard.back.split('(')[0].split('/')[0].trim()
+                    ? currentCard.back.split(/[(/]/)[0].trim()
                     : currentCard.back)
                   : currentCard.front}
               </p>

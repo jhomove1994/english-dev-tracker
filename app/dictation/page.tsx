@@ -42,13 +42,13 @@ const DIFF_COLORS = {
   hard: 'text-red-400 bg-red-500/10 border-red-500/30',
 } as const
 
-function normalise(s: string) {
+function normalize(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim()
 }
 
 function scoreAnswer(expected: string, given: string): { correct: number; total: number; missed: string[] } {
-  const expWords = normalise(expected).split(' ')
-  const givenWords = new Set(normalise(given).split(' '))
+  const expWords = normalize(expected).split(' ')
+  const givenWords = new Set(normalize(given).split(' '))
   const correct = expWords.filter(w => givenWords.has(w)).length
   const missed = expWords.filter(w => !givenWords.has(w))
   return { correct, total: expWords.length, missed }

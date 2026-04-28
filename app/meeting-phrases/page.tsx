@@ -6,6 +6,10 @@ import { useSpeech } from '@/lib/hooks/useSpeech'
 import { CUSTOM_FLASHCARD_SAVE_RESULT, saveUniqueCustomFlashcard } from '@/lib/custom-flashcards'
 import { Volume2, VolumeX, Plus, Check } from 'lucide-react'
 
+// Approximate ms per character for TTS duration estimation (used to clear speaking state)
+const TTS_MS_PER_CHAR = 65
+const TTS_MIN_MS = 2000
+
 export default function MeetingPhrasesPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('All')
   const [addedIds, setAddedIds] = useState<string[]>([])
@@ -21,7 +25,7 @@ export default function MeetingPhrasesPage() {
     setSpeakingId(phrase.id)
     speak(phrase.phrase)
     // Reset speaking indicator when done (approximate via phrase length)
-    const ms = Math.max(2000, phrase.phrase.length * 70)
+    const ms = Math.max(TTS_MIN_MS, phrase.phrase.length * TTS_MS_PER_CHAR)
     setTimeout(() => setSpeakingId(null), ms)
   }
 

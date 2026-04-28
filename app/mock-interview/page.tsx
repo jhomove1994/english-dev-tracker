@@ -13,6 +13,10 @@ interface SessionQuestion { question: InterviewQuestion; result: QuestionResult;
 
 const QUESTION_TIME_SECONDS = 120
 
+// Score thresholds for summary feedback
+const SCORE_EXCELLENT = 70 // % correct to show celebration emoji
+const SCORE_GOOD = 40      // % correct to show encouragement emoji
+
 // Minimal browser SpeechRecognition types (not in standard TS lib)
 interface SpeechRecognitionEvent extends Event {
   results: SpeechRecognitionResultList
@@ -179,7 +183,7 @@ export default function MockInterviewPage() {
     return (
       <div className="max-w-xl space-y-6">
         <div className="bg-[#111111] border border-[#1f1f1f] rounded-xl p-8 text-center">
-          <div className="text-5xl mb-4">{score >= 70 ? '🎉' : score >= 40 ? '💪' : '📚'}</div>
+          <div className="text-5xl mb-4">{score >= SCORE_EXCELLENT ? '🎉' : score >= SCORE_GOOD ? '💪' : '📚'}</div>
           <h3 className="text-2xl font-bold text-white mb-2">Session Complete!</h3>
           <p className="text-gray-400">Score: <span className="text-green-400 font-bold">{score}%</span></p>
           <div className="grid grid-cols-3 gap-4 mt-6">
