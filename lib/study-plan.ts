@@ -352,6 +352,52 @@ function buildGrammarPoints(week: StudyWeek, day: number): StudyGrammarPoint[] {
 }
 
 
+function buildGrammarTheorySection(week: StudyWeek, day: number): StudyDaySectionSeed {
+  const grammar = buildGrammarPoints(week, day)
+
+  const contextByDay: Record<number, { intro: string; cta: string }> = {
+    1: {
+      intro: `Grammar lesson — ${grammar.length} rules to study before you write. Each rule corresponds directly to one of the sentence frames in today's class. Read each one carefully. Most speaking errors at this stage do not come from not knowing vocabulary — they come from these specific grammar patterns being applied incorrectly.`,
+      cta: `Now take the first sentence frame from this class. Write it with your real details and check: did you follow the rule? If not, rewrite the sentence before moving to the next one. One correct sentence is better than three guessed ones.`,
+    },
+    2: {
+      intro: `Grammar lesson — ${grammar.length} structures for professional interview answers and technical communication. These are the patterns that make the difference between an answer that sounds structured and one that sounds improvised. Study each one before writing your tasks today.`,
+      cta: `When you write your interview answer and your async message, return here if a sentence feels uncertain. Identify which rule applies, check your sentence against the correct pattern, and rewrite before continuing.`,
+    },
+    3: {
+      intro: `Grammar lesson — ${grammar.length} structures for working with the resource today. These patterns give you precise language for taking notes, describing what you observed, and summarising ideas. Study them before opening the resource so you have the tools ready when you need them.`,
+      cta: `During and after the resource, actively use these patterns. Write at least one sentence for each rule using something from the resource. This is how grammar and vocabulary combine into usable English you can reproduce later.`,
+    },
+    4: {
+      intro: `Grammar lesson — ${grammar.length} correction structures. Today is your revision lab, so the grammar you need is specifically about identifying and rewriting weak sentences. Study each pattern and treat it as a checklist for reviewing your earlier work.`,
+      cta: `Take your draft and scan every sentence. For each one, decide which rule it should follow. If the sentence violates a rule, rewrite it before writing your second version. A good correction names the rule it applies — not just a general feeling that it sounds better.`,
+    },
+    5: {
+      intro: `Grammar lesson — ${grammar.length} structures for your assessment and reflection today. Vague self-reflection does not produce progress. These grammar patterns force you to be specific: what exactly improved, what exactly still needs work, and what exactly you will practise next.`,
+      cta: `Use these structures directly in your written assessment. If your reflection says only "it was hard" or "I improved", it is not specific enough. Use the patterns above to produce sentences that name the real skill, the real gap, and the real next step.`,
+    },
+  }
+
+  const context = contextByDay[day] ?? contextByDay[1]
+
+  const paragraphs: string[] = [context.intro]
+
+  grammar.forEach((point, i) => {
+    paragraphs.push(
+      `Rule ${i + 1} — ${point.title}. Pattern: ${point.pattern}. ${point.whenToUse}`,
+      `Correct: "${point.example}". Error to avoid: ${point.commonError}`,
+    )
+  })
+
+  paragraphs.push(context.cta)
+
+  return {
+    title: 'Grammar lesson · rules for today',
+    paragraphs,
+    bullets: grammar.map((point, i) => `Rule ${i + 1} · ${point.title}: ${point.pattern}`),
+  }
+}
+
 function buildPrerequisites(week: StudyWeek, day: number, glossary: StudyGlossaryTerm[]): StudyDayPrerequisite {
   const grammar = buildGrammarPoints(week, day)
   const vocabulary = buildSupportVocabulary(glossary, 6)
@@ -1326,6 +1372,7 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
           ],
           bullets: lesson1.sentenceFrames,
         },
+        buildGrammarTheorySection(week, 1),
         {
           title: `Guided model · ${lesson1.title}`,
           paragraphs: [
@@ -1400,6 +1447,7 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
           ],
           bullets: lesson3.sentenceFrames,
         },
+        buildGrammarTheorySection(week, 2),
         {
           title: `Communication lesson · ${lesson4.title}`,
           paragraphs: [
@@ -1458,28 +1506,46 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
           title: 'Before you open the resource',
           paragraphs: [
             `Your goal today is not simply to watch or read ${resource?.title ?? 'the weekly resource'}. Your goal is to extract language, ideas, and examples you can use in your own English.`,
-            `Good academic study starts before the resource begins: know what you are looking for and why it matters for the week's communication goal.`,
+            `Good academic study starts before the resource begins: know what you are looking for and why it matters for the week's communication goal. Passive consumption and active study look the same from the outside but produce completely different results.`,
+            `Vocabulary pre-loading: Look at the title and topic of the resource. List 5 to 8 technical or academic words you expect to hear or read. When they appear, you will recognize them instead of stopping to translate. If a word surprises you, add it to your notes immediately.`,
+            `Prediction strategy: Before you start, ask yourself: What is the main argument likely to be? What structure will this resource follow — problem and solution, list of tips, story, or explanation? Predicting activates your existing knowledge and makes comprehension significantly faster.`,
           ],
           bullets: [
             `Study objective: ${resource?.studyObjective ?? 'Use the resource as guided input.'}`,
             `Why it helps: ${resource?.whyItHelps ?? 'It connects the lesson to a real source.'}`,
+            `Pre-loading task: Write 5 words you expect to appear before pressing play or opening the page.`,
+            `Focus question: What do I most want to learn from this resource today?`,
           ],
         },
+        buildGrammarTheorySection(week, 3),
         {
           title: 'During the resource',
           paragraphs: [
             `Pause strategically. Every pause should produce something: a phrase, a summary, a comparison, or a spoken answer.`,
+            `When you pause, use the note structure: "Main idea: ___. Useful phrase: '___'. I can use this when: ___." The third part — when you can use it — is the most important part. Without that, the phrase stays in your notebook but never reaches your mouth.`,
+            `If you hear a phrase you want to reuse, say it aloud twice immediately. This activates pronunciation before your memory has time to forget the sound. Then write it down. Speaking first, writing second.`,
+            `If you find a section unclear, do not stop the whole session. Write a timestamp note and continue. Missing one segment does not break your comprehension of the whole resource. Return to unclear parts only after finishing once.`,
             `If you only highlight or only keep watching, the class stays superficial. The real learning happens when you turn input into output immediately.`,
           ],
-          bullets: resource?.practiceWhileUsing ?? [],
+          bullets: resource?.practiceWhileUsing ?? [
+            `Pause after each main idea and retell it in simpler words before continuing.`,
+            `Say one key phrase aloud twice before writing it down.`,
+            `Note timestamps of any section you want to revisit after finishing.`,
+          ],
         },
         {
           title: 'After the resource',
           paragraphs: [
             `Close the tab or video for a moment and explain what you learned without looking. This is the moment where comprehension becomes usable English.`,
+            `Structure your summary using this formula: "There are [number] main ideas in this resource. First, [idea 1]. Second, [idea 2]. The most important takeaway is [conclusion]." This forces you to organise your understanding before writing notes.`,
+            `Real comprehension test: Ask yourself — if someone asked me to teach this topic in 2 minutes, what would I say? If you cannot answer that without looking at notes, you consumed the resource but did not yet learn from it. Repeat the retell exercise until you can do it without prompts.`,
             `Then answer the quiz prompts aloud and in writing. The goal is to move from recognition to production.`,
           ],
-          bullets: resource?.keyPhrases ?? [],
+          bullets: resource?.keyPhrases ?? [
+            `Say your 2-minute summary aloud without looking at notes.`,
+            `Write the 3 most useful phrases with one real example for each.`,
+            `Answer one comprehension question in writing from memory.`,
+          ],
         },
       ],
       writtenActivities: [
@@ -1516,25 +1582,35 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
       minutes: '45-60 min',
       focus: 'Revision, correction, and stronger second versions',
       sections: [
+        buildGrammarTheorySection(week, 4),
         {
           title: 'Why correction matters',
           paragraphs: [
             `Many learners think repetition alone creates improvement. In reality, repetition without correction only makes weak patterns more automatic.`,
             `Today is your correction lab. Compare your first versions with the pass criteria of the lessons and find the exact place where quality drops.`,
+            `Three-step diagnosis before every correction: (1) Find the sentence that feels weakest. (2) Name the exact problem: is it a vague noun, the wrong tense, a missing outcome, or a translated structure? (3) Identify which grammar rule from today's lesson fixes that problem. Correction without naming the rule is just guessing.`,
+            `Common patterns that need correction at this stage: sentences that start with "I did..." without saying what exactly. Answers that end after the action without the result. Technical explanations that use "things" or "stuff" instead of exact tool names. Introductions that say "I am good at..." without one real example.`,
           ],
           bullets: [
-            'Look for vague nouns.',
-            'Look for missing structure.',
-            'Look for lines that sound translated.',
+            'Look for vague nouns: replace thing, stuff, problem, issue with exact technical terms.',
+            'Look for missing structure: every story needs action + result.',
+            'Look for lines that sound translated: rewrite using one of the lesson frames.',
             'Look for answers that end without impact or conclusion.',
           ],
         },
         {
           title: 'How to revise intelligently',
           paragraphs: [
-            `Revise one problem at a time. If you try to fix everything at once, your attention becomes weak.`,
-            `Choose the most important weakness first: clarity, structure, confidence, technical precision, or relevance.`,
-            `Then produce a second version that is visibly better in that specific area.`,
+            `Revise one problem at a time. If you try to fix everything at once, your attention becomes weak and you end up with many small changes that do not add up to real improvement.`,
+            `Before vs After structure: Write the original sentence, then write your revised version directly below it. Compare them line by line. If the revision only adds more words without adding clarity, you improved quantity, not quality.`,
+            `Grammar-based revision checklist: Check every sentence for vague nouns — replace with exact technical nouns. Check every story sentence for the outcome — add it if missing. Check every opening sentence — does it state the main point immediately? Check every because — does it add a full reason with Subject + Verb?`,
+            `Choose the most important weakness first: clarity, structure, confidence, technical precision, or relevance. Then produce a second version that is visibly better in that specific area.`,
+          ],
+          bullets: [
+            `Step 1: Choose one sentence to fix. Write it above a blank line.`,
+            `Step 2: Name the problem in one word: vague / structure / tense / missing-result / translated.`,
+            `Step 3: Write the corrected version on the blank line using the correct grammar pattern.`,
+            `Step 4: Read both versions aloud. The improvement should be audible, not just visual.`,
           ],
         },
         {
@@ -1542,11 +1618,15 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
           paragraphs: [
             `A stronger version is not necessarily longer. It is clearer, more precise, and easier for another person to follow.`,
             `If your second version only adds more words, you probably improved quantity, not quality.`,
+            `Before and after examples: Weak: "I fixed a problem in the app." Strong: "I fixed a null reference error in the authentication middleware that was blocking login for users with special characters in their email." The second version is longer here because every added word adds real information, not decoration.`,
+            `Before and after example for brevity: Weak: "I am a developer who is good at making things for the frontend side of web applications." Strong: "I am a frontend developer working mainly with React and TypeScript." The second version is shorter because every vague phrase was replaced with an exact noun.`,
           ],
           bullets: [
             'Shorter but clearer is an improvement.',
             'More exact vocabulary is an improvement.',
             'Better logical order is an improvement.',
+            'Adding a real result or outcome is an improvement.',
+            'Replacing a vague adjective with a specific example is an improvement.',
           ],
         },
       ],
@@ -1584,11 +1664,14 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
       minutes: '30-45 min',
       focus: 'Assessment and weekly closure',
       sections: [
+        buildGrammarTheorySection(week, 5),
         {
           title: 'What assessment means this week',
           paragraphs: [
             `Assessment is not about perfection. It is about proving that you can perform the main task of the week without heavy dependence on notes.`,
+            `Two levels of evidence: Recording evidence — can you say the main task from this week without reading a script? Writing evidence — does your written task meet the pass criteria listed in the lesson? Real assessment requires both. Checking a box without the evidence protects your progress score but hurts your actual level.`,
             `Today you review the evidence required by the lessons and compare your final version against the weekly goal.`,
+            `Honest assessment question: Look at each lesson's pass criteria. For each criterion, decide: "I can do this consistently without notes" (PASS), "I can do this with notes but not freely" (IMPROVING — repeat next week), or "I struggle with this even with notes" (NEEDS PRACTICE — do not unlock the next week yet). Being honest here is what separates real progress from false progress.`,
           ],
         },
         {
@@ -1603,7 +1686,15 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
           title: 'Reflection for real progress',
           paragraphs: [
             `Ask yourself what improved, what still feels fragile, and what you need to carry into the next week.`,
+            `Structured reflection format: use these four sentences — (1) "This week I improved my ability to ___ because I practised ___." (2) "The skill that still feels fragile is ___ because I notice I still ___." (3) "The sentence or pattern that still sounds translated is: ___." (4) "Next week I will specifically practise ___ in order to fix ___."`,
+            `Progress warning: If your reflection says everything was good or uses the word "everything" for any category, you are not noticing your weak points yet. The first real sign of improvement is that you can name your own mistakes precisely and quickly.`,
             `This reflection matters because your next module should build on something real, not on auto-completed progress.`,
+          ],
+          bullets: [
+            `I improved: ___ (name the exact skill, not just "my English").`,
+            `I still need to practise: ___ (name the exact structure or vocabulary area).`,
+            `The sentence that still sounds translated: ___ (write it, then write a better version).`,
+            `Next week I will: ___ (one concrete action, not "I will try harder").`,
           ],
         },
       ],
