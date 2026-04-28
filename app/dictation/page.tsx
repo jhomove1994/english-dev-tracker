@@ -2,7 +2,9 @@
 
 import { useState, useCallback } from 'react'
 import { useSpeech } from '@/lib/hooks/useSpeech'
-import { Volume2, RefreshCw, Check, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { usePersistentStorage } from '@/lib/hooks/usePersistentStorage'
+import { PERSISTENT_STORAGE_KEY } from '@/lib/persistence'
+import { Volume2, RefreshCw, Check, X, ChevronDown, ChevronUp, History } from 'lucide-react'
 
 interface DictationExercise {
   id: string
@@ -10,6 +12,16 @@ interface DictationExercise {
   hint: string
   category: string
   difficulty: 'easy' | 'medium' | 'hard'
+}
+
+export interface DictationResult {
+  id: string
+  exerciseId: string
+  exerciseText: string
+  category: string
+  difficulty: 'easy' | 'medium' | 'hard'
+  percentage: number
+  date: string
 }
 
 const EXERCISES: DictationExercise[] = [
@@ -42,6 +54,9 @@ const DIFF_COLORS = {
   hard: 'text-red-400 bg-red-500/10 border-red-500/30',
 } as const
 
+const HISTORY_DISPLAY_LIMIT = 15
+const HISTORY_AVG_WINDOW = 20
+
 function normalize(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim()
 }
@@ -62,7 +77,9 @@ export default function DictationPage() {
   const [userInput, setUserInput] = useState('')
   const [showResult, setShowResult] = useState(false)
   const [showAnswer, setShowAnswer] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
   const { speak, isSupported: ttsSupported } = useSpeech()
+  const [history, setHistory] = usePersistentStorage<DictationResult[]>(PERSISTENT_STORAGE_KEY.DICTATION_HISTORY, [])
 
   const categories = ['All', ...Array.from(new Set(EXERCISES.map(e => e.category)))]
 
@@ -78,7 +95,23 @@ export default function DictationPage() {
     if (exercise) speak(exercise.text, speed)
   }, [exercise, speak, speed])
 
-  const handleCheck = () => setShowResult(true)
+  const handleCheck = () => {
+    setShowResult(true)
+    if (exercise) {
+      const r = scoreAnswer(exercise.text, userInput)
+      const pct = Math.round((r.correct / r.total) * 100)
+      const record: DictationResult = {
+        id: crypto.randomUUID(),
+        exerciseId: exercise.id,
+        exerciseText: exercise.text,
+        category: exercise.category,
+        difficulty: exercise.difficulty,
+        percentage: pct,
+        date: new Date().toISOString(),
+      }
+      setHistory(prev => [record, ...prev].slice(0, 50))
+    }
+  }
 
   const handleNext = () => {
     setCurrentIdx(i => (i + 1) % filtered.length)
@@ -89,6 +122,10 @@ export default function DictationPage() {
 
   const result = showResult && exercise ? scoreAnswer(exercise.text, userInput) : null
   const percentage = result ? Math.round((result.correct / result.total) * 100) : 0
+
+  const avgScore = history.length > 0
+    ? Math.round(history.slice(0, HISTORY_AVG_WINDOW).reduce((acc, r) => acc + r.percentage, 0) / Math.min(history.length, HISTORY_AVG_WINDOW))
+    : null
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -193,6 +230,32 @@ export default function DictationPage() {
             )}
           </div>
         </>
+      )}
+
+      {/* Stats + History */}
+      {(history.length > 0 || avgScore !== null) && (
+        <div className="bg-[#111111] border border-[#1f1f1f] rounded-xl p-5">
+          <button onClick={() => setShowHistory(h => !h)} className="flex items-center justify-between w-full">
+            <span className="flex items-center gap-2 text-white font-semibold">
+              <History size={16} /> History ({history.length} exercises)
+              {avgScore !== null && <span className="text-xs text-gray-400 font-normal ml-2">Avg score: <span className={`font-semibold ${avgScore >= 80 ? 'text-green-400' : avgScore >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>{avgScore}%</span></span>}
+            </span>
+            {showHistory ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+          </button>
+          {showHistory && (
+            <div className="mt-4 space-y-2">
+              {history.slice(0, HISTORY_DISPLAY_LIMIT).map(r => (
+                <div key={r.id} className="flex items-center justify-between bg-[#1a1a1a] rounded-lg px-3 py-2 text-sm">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className={`font-bold shrink-0 ${r.percentage >= 80 ? 'text-green-400' : r.percentage >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>{r.percentage}%</span>
+                    <span className="text-gray-400 truncate">{r.exerciseText.slice(0, 50)}{r.exerciseText.length > 50 ? '…' : ''}</span>
+                  </div>
+                  <span className="text-gray-600 text-xs shrink-0 ml-2">{new Date(r.date).toLocaleDateString('en', { month: 'short', day: 'numeric' })}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   )

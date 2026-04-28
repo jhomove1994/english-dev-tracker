@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { useIndexedDBAudio } from '@/lib/hooks/useIndexedDBAudio'
 
 export interface Recording {
   id: string
@@ -14,10 +15,47 @@ export function useAudioRecorder() {
   const [isRecording, setIsRecording] = useState(false)
   const [recordings, setRecordings] = useState<Recording[]>([])
   const [currentDuration, setCurrentDuration] = useState(0)
+  const [loaded, setLoaded] = useState(false)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const startTimeRef = useRef<number>(0)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const blobUrlsRef = useRef<Record<string, string>>({})
+
+  const idb = useIndexedDBAudio()
+
+  // Load persisted recordings on mount
+  useEffect(() => {
+    let cancelled = false
+    idb.loadAllRecordings()
+      .then((persisted) => {
+        if (cancelled) return
+        const restored: Recording[] = persisted.map((r) => {
+          const blobUrl = URL.createObjectURL(r.blob)
+          blobUrlsRef.current[r.id] = blobUrl
+          return {
+            id: r.id,
+            blobUrl,
+            durationSeconds: r.durationSeconds,
+            notes: r.notes,
+            recordedAt: r.recordedAt,
+          }
+        })
+        setRecordings(restored)
+        setLoaded(true)
+      })
+      .catch(() => { setLoaded(true) })
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Revoke blob URLs on unmount
+  useEffect(() => {
+    const urls = blobUrlsRef.current
+    return () => {
+      Object.values(urls).forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [])
 
   const startRecording = useCallback(async () => {
     try {
@@ -48,7 +86,8 @@ export function useAudioRecorder() {
       if (!mediaRecorderRef.current) { resolve(null); return }
 
       mediaRecorderRef.current.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+        const mimeType = mediaRecorderRef.current?.mimeType ?? 'audio/webm'
+        const blob = new Blob(chunksRef.current, { type: mimeType })
         const blobUrl = URL.createObjectURL(blob)
         const duration = Math.floor((Date.now() - startTimeRef.current) / 1000)
 
@@ -64,6 +103,18 @@ export function useAudioRecorder() {
           recordedAt: new Date().toISOString(),
         }
 
+        blobUrlsRef.current[recording.id] = blobUrl
+
+        // Persist to IndexedDB
+        idb.saveRecording({
+          id: recording.id,
+          blob,
+          mimeType,
+          durationSeconds: duration,
+          notes: '',
+          recordedAt: recording.recordedAt,
+        }).catch((err: unknown) => console.warn('Failed to save audio to IndexedDB:', err))
+
         setRecordings(prev => [recording, ...prev])
         resolve(recording)
       }
@@ -71,24 +122,30 @@ export function useAudioRecorder() {
       mediaRecorderRef.current.stop()
       mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop())
     })
-  }, [])
+  }, [idb])
 
   const deleteRecording = useCallback((id: string) => {
     setRecordings(prev => {
       const rec = prev.find(r => r.id === id)
-      if (rec) URL.revokeObjectURL(rec.blobUrl)
+      if (rec) {
+        URL.revokeObjectURL(rec.blobUrl)
+        delete blobUrlsRef.current[id]
+      }
       return prev.filter(r => r.id !== id)
     })
-  }, [])
+    idb.deleteRecording(id).catch((err: unknown) => console.warn('Failed to delete audio from IndexedDB:', err))
+  }, [idb])
 
   const updateNotes = useCallback((id: string, notes: string) => {
     setRecordings(prev => prev.map(r => r.id === id ? { ...r, notes } : r))
-  }, [])
+    idb.updateNotes(id, notes).catch((err: unknown) => console.warn('Failed to update notes in IndexedDB:', err))
+  }, [idb])
 
   return {
     isRecording,
     currentDuration,
     recordings,
+    loaded,
     startRecording,
     stopRecording,
     deleteRecording,

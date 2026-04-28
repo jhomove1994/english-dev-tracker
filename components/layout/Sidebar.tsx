@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Timer, CheckSquare, CreditCard, Mic, BarChart3, MessageSquare, BookOpen, Users, Headphones, FileText } from 'lucide-react'
+import { LayoutDashboard, Timer, CheckSquare, CreditCard, Mic, BarChart3, MessageSquare, BookOpen, Users, Headphones, FileText, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
@@ -17,6 +17,7 @@ const navItems = [
   { href: '/dictation', label: 'Dictation', icon: Headphones },
   { href: '/templates', label: 'Templates', icon: FileText },
   { href: '/stats', label: 'Statistics', icon: BarChart3 },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
 export function Sidebar() {

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { PHASES } from '@/lib/data/milestones'
 import { getDayKey } from '@/lib/utils'
 import { usePersistentStorage } from '@/lib/hooks/usePersistentStorage'
@@ -10,7 +10,7 @@ import { useStudyStats } from '@/lib/hooks/useStudyStats'
 import { useFlashcards } from '@/lib/hooks/useFlashcards'
 import { useSpeech } from '@/lib/hooks/useSpeech'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Timer, CreditCard, CheckSquare, Mic, MessageSquare, BarChart3, Flame, Clock, Target, TrendingUp, BookOpen, Volume2, Users, FileText, Headphones } from 'lucide-react'
+import { Timer, CreditCard, CheckSquare, Mic, MessageSquare, BarChart3, Flame, Clock, Target, TrendingUp, BookOpen, Volume2, Users, FileText, Headphones, Copy, Check, Settings } from 'lucide-react'
 
 // English level progression
 const LEVELS = [
@@ -44,6 +44,7 @@ export default function DashboardPage() {
   const [completedMilestones] = usePersistentStorage<string[]>(PERSISTENT_STORAGE_KEY.COMPLETED_MILESTONES, [])
   const [dailyChallenge, setDailyChallenge] = usePersistentStorage<Record<string, string>>('daily_challenge_answers', {})
   const { speak, isSupported: ttsSupported } = useSpeech()
+  const [copiedChallenge, setCopiedChallenge] = useState(false)
 
   const phase = PHASES.find(p => p.id === currentPhase) ?? PHASES[0]
   const phaseMilestones = phase.milestones
@@ -88,6 +89,7 @@ export default function DashboardPage() {
     { href: '/dictation', icon: Headphones, label: 'Dictation', color: 'text-pink-400' },
     { href: '/templates', icon: FileText, label: 'Templates', color: 'text-cyan-400' },
     { href: '/stats', icon: BarChart3, label: 'Statistics', color: 'text-teal-400' },
+    { href: '/settings', icon: Settings, label: 'Settings', color: 'text-gray-400' },
   ]
 
   return (
@@ -236,7 +238,22 @@ export default function DashboardPage() {
             rows={2}
             className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-2 text-sm text-gray-300 placeholder:text-gray-600 resize-none focus:outline-none focus:border-green-500/50"
           />
-          {dailyChallenge[todayKey] && <p className="text-xs text-green-400">✅ Challenge completed for today!</p>}
+          <div className="flex items-center justify-between">
+            {dailyChallenge[todayKey] ? <p className="text-xs text-green-400">✅ Challenge completed for today!</p> : <span />}
+            {dailyChallenge[todayKey] && (
+              <button
+                onClick={async () => {
+                  const prompt = `You are an English coach helping a Spanish-speaking developer improve their English.\n\nToday's phrase: "${wordOfDay.phrase}" (${wordOfDay.context})\n\nMy sentence: "${dailyChallenge[todayKey]}"\n\nPlease:\n1. Rate the grammatical correctness (0-10)\n2. Point out any mistakes or unnatural phrasing\n3. Suggest a more natural version of my sentence\n4. Give one vocabulary tip related to this phrase`
+                  await navigator.clipboard.writeText(prompt)
+                  setCopiedChallenge(true)
+                  setTimeout(() => setCopiedChallenge(false), 2000)
+                }}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${copiedChallenge ? 'border-green-500 bg-green-500/10 text-green-400' : 'border-[#2a2a2a] text-gray-400 hover:border-[#3a3a3a] hover:text-white'}`}
+              >
+                {copiedChallenge ? <><Check size={12} /> Copied!</> : <><Copy size={12} /> Copy AI feedback prompt</>}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
