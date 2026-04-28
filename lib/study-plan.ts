@@ -181,6 +181,10 @@ function fillSupportBlank(frame: string) {
   return frame.replace(/___/g, 'your example')
 }
 
+function formatFramesWithNumbers(frames: string[]): string {
+  return frames.map((f, i) => `(${i + 1}) "${f}"`).join(', ')
+}
+
 function buildSupportVocabulary(glossary: StudyGlossaryTerm[], count: number): StudySupportVocabulary[] {
   return glossary.slice(0, count).map((item) => ({
     term: item.term,
@@ -1326,7 +1330,7 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
           title: `Guided model · ${lesson1.title}`,
           paragraphs: [
             lesson1.guidedExample.scenario,
-            `This section has ${lesson1.sentenceFrames.length} sentence frames. Each frame answers one key question about your role, your work, or your reason. The raw frames are: ${lesson1.sentenceFrames.map((f, i) => `(${i + 1}) "${f}"`).join(', ')}.`,
+            `This section has ${lesson1.sentenceFrames.length} sentence frames. Each frame answers one key question about your role, your work, or your reason. The raw frames are: ${formatFramesWithNumbers(lesson1.sentenceFrames)}.`,
             `Read the filled model below carefully. Notice how the sample details fit the structure. After reading, write your own version replacing every blank with information from your real experience.`,
             lesson1.guidedExample.whyItWorks,
           ],
@@ -1337,7 +1341,7 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
           paragraphs: [
             `${lesson2.objective} The purpose of this part is not only to understand the resource. It is to train your ear to notice how clear English sounds when ideas are ordered well.`,
             `Three-step listening process: First, listen once for the global idea and resist stopping. Second, listen again and pause after each main idea to identify useful phrases. Third, retell what you heard in two or three simpler sentences without looking at notes.`,
-            ...lesson2.miniLesson.slice(1, -1),
+            ...lesson2.miniLesson.length > 2 ? lesson2.miniLesson.slice(1, -1) : lesson2.miniLesson.slice(1),
             `After you listen, retelling in simpler English is the real test. If you can retell it, you learned it.`,
           ],
           bullets: lesson2.supportTools,
@@ -1409,8 +1413,8 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
           title: 'Model and correction logic',
           paragraphs: [
             `Study the example lines before you create your own version. The example is not there to be copied forever; it is there to show you how a clean answer is built.`,
-            `For "${lesson3.title}": the sentence frames follow this logic: ${lesson3.sentenceFrames.slice(0, 2).map((f, i) => `(${i + 1}) "${f}"`).join(', ')}. Read the filled model, then replace every sample detail with a real story from your experience.`,
-            `For "${lesson4.title}": the frames follow an ordered sequence: ${lesson4.sentenceFrames.slice(0, 2).map((f, i) => `(${i + 1}) "${f}"`).join(', ')}. Use exact tool names and action verbs in every sentence.`,
+            `For "${lesson3.title}": the sentence frames follow this logic: ${formatFramesWithNumbers(lesson3.sentenceFrames.slice(0, 2))}. Read the filled model, then replace every sample detail with a real story from your experience.`,
+            `For "${lesson4.title}": the frames follow an ordered sequence: ${formatFramesWithNumbers(lesson4.sentenceFrames.slice(0, 2))}. Use exact tool names and action verbs in every sentence.`,
             `After writing, compare your version against the common mistakes. Correction is part of the class, not something extra.`,
           ],
           bullets: [...lesson3.guidedExample.model, ...lesson4.guidedExample.model],
