@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
@@ -17,9 +17,11 @@ import {
   Lock,
   MessageSquare,
   Mic,
+  PenLine,
   Plus,
   Save,
   Sparkles,
+  Square,
   Target,
   Trash2,
   Video,
@@ -57,6 +59,32 @@ import {
 } from '@/lib/study-errors'
 import { usePersistentStorage } from '@/lib/hooks/usePersistentStorage'
 import { useSpeech } from '@/lib/hooks/useSpeech'
+import { useVoiceRecorder } from '@/lib/hooks/useVoiceRecorder'
+import { useSupportMode } from '@/lib/contexts/SupportModeContext'
+import { SectionGate } from './SectionGate'
+import { FeedbackPanel } from './FeedbackPanel'
+import type { FeedbackResponse } from '@/lib/ai-feedback'
+
+// Browser Speech Recognition constructor type (not in standard TS DOM lib)
+interface SpeechRecognitionLike {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  onresult: ((event: { results: SpeechRecognitionResultList }) => void) | null
+  onerror: (() => void) | null
+  start: () => void
+  stop: () => void
+}
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike
+
+function getBrowserSpeechRecognition(): SpeechRecognitionCtor | undefined {
+  if (typeof window === 'undefined') return undefined
+  const w = window as unknown as {
+    SpeechRecognition?: SpeechRecognitionCtor
+    webkitSpeechRecognition?: SpeechRecognitionCtor
+  }
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition
+}
 
 function getResourceEmbedUrl(url: string, channel: string): string | null {
   if (channel === 'TED' && url.includes('ted.com/talks/')) {
@@ -152,15 +180,27 @@ export default function StudyDayClassPage() {
   const [writtenWork, setWrittenWork] = usePersistentStorage<Record<string, string>>(DAY_WRITING_STORAGE_KEY, {})
   const [aiFeedback, setAiFeedback] = usePersistentStorage<Record<string, string>>(DAY_AI_FEEDBACK_STORAGE_KEY, {})
   const [studyErrors, setStudyErrors] = usePersistentStorage<StudyErrorRecord[]>(STUDY_ERROR_STORAGE_KEY, getStudyErrors())
+  const [coldAttemptTexts, setColdAttemptTexts] = usePersistentStorage<Record<string, string>>('day_cold_attempt_v1', {})
+  const [coldAttemptDone, setColdAttemptDone] = usePersistentStorage<string[]>('day_cold_attempt_done_v1', [])
+  const [sectionCompletions, setSectionCompletions] = usePersistentStorage<Record<string, boolean>>('day_section_completions_v1', {})
+  const guidedModelSentinelRef = useRef<HTMLDivElement | null>(null)
   const [addedGlossaryIds, setAddedGlossaryIds] = useState<string[]>([])
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null)
   const [copyError, setCopyError] = useState<string | null>(null)
   const [errorFlashcardStatus, setErrorFlashcardStatus] = useState<Record<string, string>>({})
-  const [supportModeEnabled, setSupportModeEnabled] = useState(true)
+  const { supportModeEnabled, setSupportModeEnabled } = useSupportMode()
   const [sectionSupportView, setSectionSupportView] = useState<Record<string, StudySupportView>>({})
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
   const [checkedQuizItems, setCheckedQuizItems] = useState<string[]>([])
   const [expandedVocabItems, setExpandedVocabItems] = useState<string[]>([])
+  const [gatePassedThisSession, setGatePassedThisSession] = useState(false)
+  const [activityFeedback, setActivityFeedback] = useState<Record<string, FeedbackResponse | null>>({})
+  const [activityFeedbackLoading, setActivityFeedbackLoading] = useState<Record<string, boolean>>({})
+  const voiceRecorder = useVoiceRecorder()
+  const [recordingActivityId, setRecordingActivityId] = useState<string | null>(null)
+  const pendingActivityRef = useRef<string | null>(null)
+  const [transcribingActivityId, setTranscribingActivityId] = useState<Record<string, boolean>>({})
+  const [transcribeError, setTranscribeError] = useState<Record<string, string | null>>({})
   const { speak, isSupported: ttsSupported } = useSpeech()
 
   const phaseUnlocked = phase ? isPhaseUnlocked(phase.id - 1, completedLessons, completedCheckpoints, completedDayChecks) : false
@@ -183,6 +223,131 @@ export default function StudyDayClassPage() {
     () => studyErrors.filter((error) => error.dayId === (currentDay?.id ?? '')),
     [studyErrors, currentDay?.id]
   )
+  const sentenceFrames = useMemo(
+    () => week ? week.lessons.flatMap((lesson) => lesson.sentenceFrames) : [],
+    [week]
+  )
+
+  useEffect(() => {
+    if (!currentDay) return
+    if (supportModeEnabled) {
+      const views: Record<string, StudySupportView> = {}
+      currentDay.sections.forEach((section) => {
+        views[section.id] = STUDY_SUPPORT_VIEW.SIMPLE
+      })
+      setSectionSupportView(views)
+    } else {
+      setSectionSupportView({})
+    }
+  }, [supportModeEnabled, currentDay])
+
+  useEffect(() => {
+    if (!currentDay) return
+    const coldAttemptComplete =
+      coldAttemptDone.includes(currentDay.id) || !!coldAttemptTexts[currentDay.id]
+    if (!coldAttemptComplete) return
+    const el = guidedModelSentinelRef.current
+    if (!el) return
+    const guidedSection = currentDay.sections.find((s) => s.title.startsWith('Guided model'))
+    if (!guidedSection) return
+    const key = `${currentDay.id}:${guidedSection.id}`
+    if (sectionCompletions[key]) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setSectionCompletions((prev) => ({ ...prev, [key]: true }))
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.5 }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDay, coldAttemptDone, coldAttemptTexts, sectionCompletions])
+
+  // When a recording stops and a blob is available, transcribe it via Groq → browser STT fallback
+  useEffect(() => {
+    if (!voiceRecorder.audioBlob) return
+    const activityId = pendingActivityRef.current
+    if (!activityId) return
+
+    setTranscribingActivityId((prev) => ({ ...prev, [activityId]: true }))
+    setTranscribeError((prev) => ({ ...prev, [activityId]: null }))
+
+    const blob = voiceRecorder.audioBlob
+    const frames = sentenceFrames
+
+    const applyTranscript = (text: string) => {
+      setWrittenWork((prev) => ({ ...prev, [activityId]: text }))
+      setActivityFeedbackLoading((prev) => ({ ...prev, [activityId]: true }))
+      void fetch('/api/ai-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userText: text, sentenceFrames: frames, speakingMode: true }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: FeedbackResponse | null) => {
+          if (data) setActivityFeedback((prev) => ({ ...prev, [activityId]: data }))
+        })
+        .catch(() => undefined)
+        .finally(() => setActivityFeedbackLoading((prev) => ({ ...prev, [activityId]: false })))
+    }
+
+    const doTranscribe = async (): Promise<void> => {
+      // Layer 1: Groq Whisper
+      try {
+        const fd = new FormData()
+        fd.append('audio', blob, 'recording.webm')
+        const res = await fetch('/api/transcribe', { method: 'POST', body: fd })
+        const data = (await res.json()) as { transcript: string; error?: string }
+        if (data.transcript) {
+          applyTranscript(data.transcript)
+          return
+        }
+        // Groq returned no transcript (empty audio, quota exceeded, or key missing) → fall through
+      } catch {
+        // Fetch or JSON parse failed (network error, server error) → fall through to browser STT
+      }
+
+      // Layer 2: browser SpeechRecognition fallback
+      const SRCtor = getBrowserSpeechRecognition()
+
+      if (SRCtor) {
+        return new Promise<void>((resolve) => {
+          const recognition = new SRCtor()
+          recognition.lang = 'en-US'
+          recognition.continuous = false
+          recognition.interimResults = false
+          recognition.onresult = (event) => {
+            const transcript = event.results[0]?.[0]?.transcript ?? ''
+            if (transcript) applyTranscript(transcript)
+            resolve()
+          }
+          recognition.onerror = () => {
+            setTranscribeError((prev) => ({
+              ...prev,
+              [activityId]: 'Could not transcribe — please type your answer instead',
+            }))
+            resolve()
+          }
+          recognition.start()
+        })
+      }
+
+      setTranscribeError((prev) => ({
+        ...prev,
+        [activityId]: 'Could not transcribe — please type your answer instead',
+      }))
+    }
+
+    void doTranscribe().finally(() => {
+      setTranscribingActivityId((prev) => ({ ...prev, [activityId]: false }))
+      setRecordingActivityId(null)
+      voiceRecorder.reset()
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceRecorder.audioBlob])
 
   if (!phase || !week || !currentDay) {
     return (
@@ -227,6 +392,32 @@ export default function StudyDayClassPage() {
   }
 
   const isDone = completedDayChecks.includes(currentDay.id)
+  const isColdAttemptComplete = coldAttemptDone.includes(currentDay.id) || !!coldAttemptTexts[currentDay.id]
+
+  const MIN_WRITTEN_ACTIVITY_CHARS = 30
+  const TRACKED_WRITTEN_ACTIVITY_COUNT = 2
+  const TOTAL_TRACKED_SECTIONS = 5
+
+  const getSectionKey = (sectionId: string) => `${currentDay.id}:${sectionId}`
+  const isSectionComplete = (sectionId: string) => !!sectionCompletions[getSectionKey(sectionId)]
+  const markSectionComplete = (sectionId: string) =>
+    setSectionCompletions((prev) => ({ ...prev, [getSectionKey(sectionId)]: true }))
+
+  const grammarLessonSection = currentDay.sections.find((s) => s.title.startsWith('Grammar lesson'))
+  const guidedModelSection = currentDay.sections.find((s) => s.title.startsWith('Guided model'))
+  const writtenActivity1 = currentDay.writtenActivities[0] ?? null
+  const writtenActivity2 = currentDay.writtenActivities[1] ?? null
+  const isWritten1Complete = writtenActivity1 ? (writtenWork[writtenActivity1.id] ?? '').length >= MIN_WRITTEN_ACTIVITY_CHARS : false
+  const isWritten2Complete = writtenActivity2 ? (writtenWork[writtenActivity2.id] ?? '').length >= MIN_WRITTEN_ACTIVITY_CHARS : false
+
+  const completedSectionCount = [
+    isColdAttemptComplete,
+    grammarLessonSection ? isSectionComplete(grammarLessonSection.id) : false,
+    guidedModelSection ? isSectionComplete(guidedModelSection.id) : false,
+    isWritten1Complete,
+    isWritten2Complete,
+  ].filter(Boolean).length
+  const progressPercent = Math.round((completedSectionCount / TOTAL_TRACKED_SECTIONS) * 100)
 
   const updateWriting = (activityId: string, value: string) => {
     const updated = { ...writtenWork, [activityId]: value }
@@ -337,6 +528,40 @@ export default function StudyDayClassPage() {
       })
   }
 
+  const handleGetFeedback = (activityId: string, text: string, speakingMode = false) => {
+    if (!text.trim()) return
+    setActivityFeedbackLoading((prev) => ({ ...prev, [activityId]: true }))
+    void fetch('/api/ai-feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userText: text, sentenceFrames, speakingMode }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: FeedbackResponse | null) => {
+        if (data) {
+          setActivityFeedback((prev) => ({ ...prev, [activityId]: data }))
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        setActivityFeedbackLoading((prev) => ({ ...prev, [activityId]: false }))
+      })
+  }
+
+  const handleVoiceRecord = async (activityId: string) => {
+    if (voiceRecorder.isRecording && recordingActivityId === activityId) {
+      voiceRecorder.stopRecording()
+      return
+    }
+    if (voiceRecorder.isRecording) {
+      voiceRecorder.stopRecording()
+    }
+    pendingActivityRef.current = activityId
+    setRecordingActivityId(activityId)
+    setTranscribeError((prev) => ({ ...prev, [activityId]: null }))
+    await voiceRecorder.startRecording()
+  }
+
   const errorCategoryOptions = Object.values(STUDY_ERROR_CATEGORY)
   const guidedSectionId = activeSectionId ?? currentDay.sections[0]?.id ?? null
   const guidedSectionIndex = currentDay.sections.findIndex((section) => section.id === guidedSectionId)
@@ -367,6 +592,68 @@ export default function StudyDayClassPage() {
         </div>
       </div>
 
+      <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-gray-300">{completedSectionCount} of 5 sections completed</p>
+          <p className="text-sm font-medium text-teal-400">{progressPercent}%</p>
+        </div>
+        <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#242424]">
+          <div
+            className="h-full rounded-full bg-teal-500 transition-all duration-500 ease-out"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-6">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <PenLine size={18} className="text-orange-300" />
+            <h3 className="text-lg font-semibold text-white">Cold attempt — before you read anything</h3>
+          </div>
+          {isColdAttemptComplete
+            ? <CheckCircle2 size={16} className="shrink-0 text-teal-400" />
+            : <Circle size={16} className="shrink-0 text-gray-600" />
+          }
+        </div>
+        <p className="mt-2 text-sm text-gray-400">
+          Before reading anything — write or say how you would introduce yourself as a developer right now. No help yet.
+        </p>
+        <textarea
+          value={coldAttemptTexts[currentDay.id] ?? ''}
+          onChange={(event) => setColdAttemptTexts((current) => ({ ...current, [currentDay.id]: event.target.value }))}
+          placeholder="Write your attempt here..."
+          rows={6}
+          className="mt-4 w-full rounded-xl border border-[#2a2a2a] bg-[#101010] px-4 py-3 text-sm text-gray-200 placeholder:text-gray-600 focus:border-orange-500/40 focus:outline-none"
+        />
+        {isColdAttemptComplete ? (
+          <div className="mt-3 inline-flex items-center gap-2 text-xs text-gray-500">
+            <Save size={14} />
+            Attempt saved — lesson content is unlocked below
+          </div>
+        ) : (
+          <div className="mt-4 flex flex-col items-start gap-3">
+            <button
+              type="button"
+              onClick={() => setColdAttemptDone((current) => [...current, currentDay.id])}
+              className="inline-flex items-center gap-2 rounded-lg border border-orange-400/30 bg-orange-400/10 px-4 py-2 text-sm text-orange-100 transition-colors hover:bg-orange-400/20"
+            >
+              <CheckCircle2 size={16} />
+              I wrote my attempt
+            </button>
+            <button
+              type="button"
+              onClick={() => setColdAttemptDone((current) => [...current, currentDay.id])}
+              className="text-xs text-gray-500 hover:text-gray-300 transition-colors underline-offset-2 hover:underline"
+            >
+              Skip cold attempt
+            </button>
+          </div>
+        )}
+      </div>
+
+      {isColdAttemptComplete && (
+        <>
       <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -567,21 +854,28 @@ export default function StudyDayClassPage() {
           </div>
         )}
         {currentDay.sections.map((section) => (
+          <Fragment key={section.id}>
           <div
-            key={section.id}
             className={cn(
               'rounded-xl border bg-[#111111] p-6',
-              supportModeEnabled && section.id === guidedSectionId ? 'border-cyan-500/30' : 'border-[#1f1f1f]'
+              supportModeEnabled && section.id === guidedSectionId ? 'border-cyan-500/30' : 'border-[#1f1f1f]',
+              section.id === guidedModelSection?.id && gatePassedThisSession && 'section-reveal'
             )}
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <h3 className="text-lg font-semibold text-white">{section.title}</h3>
-              {supportModeEnabled && (
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { id: STUDY_SUPPORT_VIEW.ORIGINAL, label: 'Original' },
-                    { id: STUDY_SUPPORT_VIEW.SIMPLE, label: 'Simple English' },
-                    { id: STUDY_SUPPORT_VIEW.GRAMMAR, label: 'Grammar coach' },
+              <div className="flex flex-wrap items-center gap-2">
+                {(section.id === grammarLessonSection?.id || section.id === guidedModelSection?.id) && (
+                  isSectionComplete(section.id)
+                    ? <CheckCircle2 size={16} className="shrink-0 text-teal-400" />
+                    : <Circle size={16} className="shrink-0 text-gray-600" />
+                )}
+                {supportModeEnabled && (
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { id: STUDY_SUPPORT_VIEW.ORIGINAL, label: 'Original' },
+                      { id: STUDY_SUPPORT_VIEW.SIMPLE, label: 'Simple English' },
+                      { id: STUDY_SUPPORT_VIEW.GRAMMAR, label: 'Grammar coach' },
                   ].map((viewOption) => (
                     <button
                       key={viewOption.id}
@@ -605,6 +899,7 @@ export default function StudyDayClassPage() {
                 </div>
               )}
             </div>
+          </div>
 
             {(sectionSupportView[section.id] ?? STUDY_SUPPORT_VIEW.ORIGINAL) === STUDY_SUPPORT_VIEW.SIMPLE ? (
               <div className="mt-4 space-y-4">
@@ -695,7 +990,23 @@ export default function StudyDayClassPage() {
                 )}
               </>
             )}
+
+            {section.id === guidedModelSection?.id && (
+              <div ref={guidedModelSentinelRef} className="h-px" aria-hidden="true" />
+            )}
           </div>
+
+          {section.id === grammarLessonSection?.id && (
+            <SectionGate
+              questions={currentDay.grammarGate.questions}
+              isAlreadyPassed={isSectionComplete(section.id)}
+              onPass={() => {
+                markSectionComplete(section.id)
+                setGatePassedThisSession(true)
+              }}
+            />
+          )}
+          </Fragment>
         ))}
       </div>
 
@@ -705,9 +1016,16 @@ export default function StudyDayClassPage() {
           These activities are dynamic: write directly here and your answers stay saved inside the app.
         </p>
         <div className="mt-4 space-y-5">
-          {currentDay.writtenActivities.map((activity) => (
+          {currentDay.writtenActivities.map((activity, activityIndex) => (
             <div key={activity.id} className="rounded-xl border border-[#242424] bg-[#151515] p-4">
-              <h4 className="font-medium text-white">{activity.title}</h4>
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="font-medium text-white">{activity.title}</h4>
+                {activityIndex < TRACKED_WRITTEN_ACTIVITY_COUNT && (
+                  (activityIndex === 0 ? isWritten1Complete : isWritten2Complete)
+                    ? <CheckCircle2 size={16} className="shrink-0 text-teal-400" />
+                    : <Circle size={16} className="shrink-0 text-gray-600" />
+                )}
+              </div>
               <p className="mt-2 text-sm text-gray-400">{activity.instructions}</p>
               {supportModeEnabled && (
                 <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr_1fr]">
@@ -740,10 +1058,70 @@ export default function StudyDayClassPage() {
                 rows={8}
                 className="mt-4 w-full rounded-xl border border-[#2a2a2a] bg-[#101010] px-4 py-3 text-sm text-gray-200 placeholder:text-gray-600 focus:border-green-500/40 focus:outline-none"
               />
-              <div className="mt-3 inline-flex items-center gap-2 text-xs text-gray-500">
-                <Save size={14} />
-                Saved automatically in this browser
+              {recordingActivityId === activity.id && voiceRecorder.isRecording && (
+                <div className="mt-2 flex items-center gap-2 text-xs text-red-400">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+                  Recording… {voiceRecorder.seconds}s / 120s
+                </div>
+              )}
+              {transcribingActivityId[activity.id] && (
+                <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
+                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-teal-400 border-t-transparent" />
+                  Transcribing…
+                </div>
+              )}
+              {(transcribeError[activity.id] ?? voiceRecorder.permissionError) && (
+                <p className="mt-2 text-xs text-amber-300">
+                  {transcribeError[activity.id] ?? voiceRecorder.permissionError}
+                </p>
+              )}
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="inline-flex items-center gap-2 text-xs text-gray-500">
+                  <Save size={14} />
+                  Saved automatically in this browser
+                </div>
+                <div className="flex items-center gap-2">
+                  {voiceRecorder.isSupported && (
+                    <button
+                      type="button"
+                      disabled={!!transcribingActivityId[activity.id]}
+                      onClick={() => { void handleVoiceRecord(activity.id) }}
+                      aria-label={
+                        recordingActivityId === activity.id && voiceRecorder.isRecording
+                          ? 'Stop recording'
+                          : 'Record voice answer'
+                      }
+                      className={cn(
+                        'inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+                        recordingActivityId === activity.id && voiceRecorder.isRecording
+                          ? 'border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20'
+                          : 'border-[#2a2a2a] bg-[#151515] text-gray-300 hover:border-[#3a3a3a]'
+                      )}
+                    >
+                      {recordingActivityId === activity.id && voiceRecorder.isRecording ? (
+                        <><Square size={13} />Stop</>
+                      ) : (
+                        <><Mic size={13} />Speak</>
+                      )}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={!(writtenWork[activity.id] ?? '').trim() || !!activityFeedbackLoading[activity.id]}
+                    onClick={() => handleGetFeedback(activity.id, writtenWork[activity.id] ?? '')}
+                    className="inline-flex items-center gap-2 rounded-lg border border-teal-400/30 bg-teal-400/10 px-3 py-1.5 text-xs text-teal-100 transition-colors hover:bg-teal-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Sparkles size={13} />
+                    Check my writing
+                  </button>
+                </div>
               </div>
+              {(activityFeedbackLoading[activity.id] || activityFeedback[activity.id]) && (
+                <FeedbackPanel
+                  feedback={activityFeedback[activity.id] ?? { score: 0, whatWorked: [], errors: [], improvedVersion: '', nextFocus: '', source: 'rules-only' }}
+                  loading={!!activityFeedbackLoading[activity.id]}
+                />
+              )}
             </div>
           ))}
         </div>
@@ -1307,6 +1685,19 @@ export default function StudyDayClassPage() {
           )}
         </div>
       </div>
+
+        </>
+      )}
+
+      {supportModeEnabled && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-4 left-4 z-50 inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100 shadow-lg backdrop-blur-sm pointer-events-none select-none"
+        >
+          🛟 Support ON
+        </div>
+      )}
     </div>
   )
 }

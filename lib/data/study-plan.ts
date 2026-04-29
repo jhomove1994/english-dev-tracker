@@ -246,9 +246,9 @@ export const STUDY_PHASES: StudyPhase[] = [
               'Your closing line should point forward: what kind of work or challenge you want next.',
             ],
             sentenceFrames: [
-              'I am a ___ developer working mainly with ___.',
-              'Right now I am building ___ for ___.',
-              'The part I enjoy most is ___ because ___.',
+              'I am a [frontend / backend / fullstack] developer working mainly with [your real stack].',
+              'Right now I am building [your project] for [your company or client].',
+              'The part I enjoy most is [area] because [real reason].',
             ],
             activities: [
               'Write a 4-line intro using the frames.',
@@ -278,7 +278,7 @@ export const STUDY_PHASES: StudyPhase[] = [
             ],
             sentenceFrames: [
               'The speaker sounds credible because ___.',
-              'The line I want to copy is ___ because ___.',
+              'The line I want to copy is [a line from the lesson model].',
               'I need to improve my ___ when I speak.',
             ],
             activities: [

@@ -60,6 +60,18 @@ export interface StudyDaySection {
   support: StudyDaySectionSupport
 }
 
+export interface StudyGrammarGateQuestion {
+  id: string
+  question: string
+  options: string[]
+  correctIndex: number
+  explanation: string
+}
+
+export interface StudyGrammarGate {
+  questions: StudyGrammarGateQuestion[]
+}
+
 export interface StudyDayActivitySupport {
   steps: string[]
   sentenceStarters: string[]
@@ -159,6 +171,7 @@ export interface StudyDayClass {
   prerequisites: StudyDayPrerequisite
   supportModeIntro: string
   aiValidation: StudyAiValidation
+  grammarGate: StudyGrammarGate
 }
 
 type StudyDaySectionSeed = Omit<StudyDaySection, 'id' | 'support'>
@@ -167,7 +180,7 @@ type StudyDayWritingActivitySeed = Omit<StudyDayWritingActivity, 'support'>
 
 type StudyDayClassSeed = Omit<
   StudyDayClass,
-  'aiValidation' | 'prerequisites' | 'supportModeIntro' | 'sections' | 'writtenActivities'
+  'aiValidation' | 'prerequisites' | 'supportModeIntro' | 'sections' | 'writtenActivities' | 'grammarGate'
 > & {
   sections: StudyDaySectionSeed[]
   writtenActivities: StudyDayWritingActivitySeed[]
@@ -177,9 +190,6 @@ function getWeekDayId(week: StudyWeek, day: number) {
   return `${week.id}-day-${day}`
 }
 
-function fillSupportBlank(frame: string) {
-  return frame.replace(/___/g, 'your example')
-}
 
 function formatFramesWithNumbers(frames: string[]): string {
   return frames.map((f, i) => `(${i + 1}) "${f}"`).join(', ')
@@ -396,6 +406,34 @@ function buildGrammarTheorySection(week: StudyWeek, day: number): StudyDaySectio
     paragraphs,
     bullets: grammar.map((point, i) => `Rule ${i + 1} · ${point.title}: ${point.pattern}`),
   }
+}
+
+function buildGrammarGate(week: StudyWeek, day: number): StudyGrammarGate {
+  const grammar = buildGrammarPoints(week, day)
+  if (grammar.length < 2) return { questions: [] }
+
+  const rule1 = grammar[0]
+  const rule2 = grammar[1]
+  const rule3 = grammar[2] ?? grammar[0]
+
+  const questions: StudyGrammarGateQuestion[] = [
+    {
+      id: `${week.id}-day-${day}-gate-q1`,
+      question: `Which pattern belongs to "${rule1.title}"?`,
+      options: [rule1.pattern, rule2.pattern, rule3.pattern],
+      correctIndex: 0,
+      explanation: `"${rule1.title}" uses the pattern: ${rule1.pattern}. ${rule1.whenToUse}`,
+    },
+    {
+      id: `${week.id}-day-${day}-gate-q2`,
+      question: `Which sentence correctly demonstrates "${rule2.title}"?`,
+      options: [rule3.example, rule2.example, rule1.example],
+      correctIndex: 1,
+      explanation: `The correct example for "${rule2.title}" is: "${rule2.example}". ${rule2.whenToUse}`,
+    },
+  ]
+
+  return { questions }
 }
 
 function buildPrerequisites(week: StudyWeek, day: number, glossary: StudyGlossaryTerm[]): StudyDayPrerequisite {
@@ -1728,10 +1766,10 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
   return dayClasses.map((dayClass) => {
     const glossary = dayClass.glossary
     const prerequisites = buildPrerequisites(week, dayClass.day, glossary)
-    const sentenceStarters = week.lessons
-      .flatMap((lesson) => lesson.sentenceFrames.slice(0, 2))
-      .map((frame) => fillSupportBlank(frame))
-      .slice(0, 4)
+    const sentenceStarters = [
+      ...(week.lessons[0]?.sentenceFrames.slice(0, 3) ?? []),
+      week.lessons[1]?.sentenceFrames?.[1] ?? '',
+    ].filter(Boolean).slice(0, 4)
 
     const enrichedDayClass: StudyDayClass = {
       ...dayClass,
@@ -1742,6 +1780,7 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
       prerequisites,
       supportModeIntro: buildSupportModeIntro(dayClass.day),
       aiValidation: buildAiValidation(dayClass, week),
+      grammarGate: buildGrammarGate(week, dayClass.day),
     }
 
     return enrichedDayClass

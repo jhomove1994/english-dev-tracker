@@ -23,3 +23,13 @@ body {
   scrollbar-width: thin;
   scrollbar-color: #3f3f46 #18181b;
 }
+
+/* Section reveal animation used when a SectionGate is passed */
+@keyframes section-reveal {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.section-reveal {
+  animation: section-reveal 0.45s ease-out both;
+}
