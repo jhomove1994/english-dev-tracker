@@ -64,7 +64,8 @@ function getResourceEmbedUrl(url: string, channel: string): string | null {
     return slug ? `https://embed.ted.com/talks/${slug}` : null
   }
   if (url.includes('youtube.com/watch')) {
-    const videoId = new URLSearchParams(url.split('?')[1]).get('v')
+    const queryString = url.split('?')[1]
+    const videoId = queryString ? new URLSearchParams(queryString).get('v') : null
     return videoId ? `https://www.youtube.com/embed/${videoId}` : null
   }
   if (url.includes('youtu.be/')) {
@@ -856,6 +857,10 @@ export default function StudyDayClassPage() {
       )}
 
       <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-6">
+        <div className="flex items-center gap-2">
+          <Bot size={18} className="text-cyan-400" />
+          <h3 className="text-lg font-semibold text-white">Validate this class with free AI</h3>
+        </div>
         <p className="mt-3 text-sm text-gray-400">{currentDay.aiValidation.intro}</p>
         <div className="mt-4 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4 text-sm text-cyan-100">
           {currentDay.aiValidation.honestyNote}
