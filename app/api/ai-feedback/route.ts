@@ -11,6 +11,7 @@ export const runtime = 'nodejs'
 interface RequestBody {
   userText: string
   sentenceFrames: string[]
+  speakingMode?: boolean
 }
 
 function isValidBody(value: unknown): value is RequestBody {
@@ -27,7 +28,8 @@ function isValidBody(value: unknown): value is RequestBody {
 // ---------------------------------------------------------------------------
 async function enrichWithGroq(
   userText: string,
-  analysis: StructuredAnalysis
+  analysis: StructuredAnalysis,
+  speakingMode = false
 ): Promise<Omit<FeedbackResponse, 'source' | 'score'> | null> {
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) return null
@@ -36,9 +38,10 @@ async function enrichWithGroq(
     const { default: Groq } = await import('groq-sdk')
     const groq = new Groq({ apiKey })
 
+    const exerciseType = speakingMode ? 'spoken answer (transcribed)' : 'writing exercise'
     const systemPrompt =
-      'You are a concise English coach for Spanish-speaking developers. ' +
-      'You receive a structured analysis of a student writing exercise. ' +
+      `You are a concise English coach for Spanish-speaking developers. ` +
+      `You receive a structured analysis of a student ${exerciseType}. ` +
       'Return ONLY a JSON object with: { whatWorked: string[] (max 2 items), ' +
       'errors: Array<{original: string, correction: string, explanation: string}> (max 3 items), ' +
       'improvedVersion: string, nextFocus: string }. ' +
@@ -103,13 +106,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Missing userText or sentenceFrames.' }, { status: 400 })
   }
 
-  const { userText, sentenceFrames } = body
+  const { userText, sentenceFrames, speakingMode } = body
 
   // Layer 1 — always runs
   const analysis = analyzeText(userText, sentenceFrames)
 
   // Layer 2 — attempt Groq enrichment
-  const groqResult = await enrichWithGroq(userText, analysis)
+  const groqResult = await enrichWithGroq(userText, analysis, speakingMode)
 
   let response: FeedbackResponse
   if (groqResult) {

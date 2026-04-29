@@ -21,6 +21,7 @@ import {
   Plus,
   Save,
   Sparkles,
+  Square,
   Target,
   Trash2,
   Video,
@@ -58,6 +59,7 @@ import {
 } from '@/lib/study-errors'
 import { usePersistentStorage } from '@/lib/hooks/usePersistentStorage'
 import { useSpeech } from '@/lib/hooks/useSpeech'
+import { useVoiceRecorder } from '@/lib/hooks/useVoiceRecorder'
 import { useSupportMode } from '@/lib/contexts/SupportModeContext'
 import { SectionGate } from './SectionGate'
 import { FeedbackPanel } from './FeedbackPanel'
@@ -173,6 +175,11 @@ export default function StudyDayClassPage() {
   const [gatePassedThisSession, setGatePassedThisSession] = useState(false)
   const [activityFeedback, setActivityFeedback] = useState<Record<string, FeedbackResponse | null>>({})
   const [activityFeedbackLoading, setActivityFeedbackLoading] = useState<Record<string, boolean>>({})
+  const voiceRecorder = useVoiceRecorder()
+  const [recordingActivityId, setRecordingActivityId] = useState<string | null>(null)
+  const pendingActivityRef = useRef<string | null>(null)
+  const [transcribingActivityId, setTranscribingActivityId] = useState<Record<string, boolean>>({})
+  const [transcribeError, setTranscribeError] = useState<Record<string, string | null>>({})
   const { speak, isSupported: ttsSupported } = useSpeech()
 
   const phaseUnlocked = phase ? isPhaseUnlocked(phase.id - 1, completedLessons, completedCheckpoints, completedDayChecks) : false
@@ -237,6 +244,103 @@ export default function StudyDayClassPage() {
     return () => observer.disconnect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentDay, coldAttemptDone, coldAttemptTexts, sectionCompletions])
+
+  // When a recording stops and a blob is available, transcribe it via Groq → browser STT fallback
+  useEffect(() => {
+    if (!voiceRecorder.audioBlob) return
+    const activityId = pendingActivityRef.current
+    if (!activityId) return
+
+    setTranscribingActivityId((prev) => ({ ...prev, [activityId]: true }))
+    setTranscribeError((prev) => ({ ...prev, [activityId]: null }))
+
+    const blob = voiceRecorder.audioBlob
+    const frames = sentenceFrames
+
+    const applyTranscript = (text: string) => {
+      setWrittenWork((prev) => ({ ...prev, [activityId]: text }))
+      setActivityFeedbackLoading((prev) => ({ ...prev, [activityId]: true }))
+      void fetch('/api/ai-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userText: text, sentenceFrames: frames, speakingMode: true }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: FeedbackResponse | null) => {
+          if (data) setActivityFeedback((prev) => ({ ...prev, [activityId]: data }))
+        })
+        .catch(() => undefined)
+        .finally(() => setActivityFeedbackLoading((prev) => ({ ...prev, [activityId]: false })))
+    }
+
+    const doTranscribe = async (): Promise<void> => {
+      // Layer 1: Groq Whisper
+      try {
+        const fd = new FormData()
+        fd.append('audio', blob, 'recording.webm')
+        const res = await fetch('/api/transcribe', { method: 'POST', body: fd })
+        const data = (await res.json()) as { transcript: string; error?: string }
+        if (data.transcript) {
+          applyTranscript(data.transcript)
+          return
+        }
+      } catch {
+        // network error — fall through to browser STT
+      }
+
+      // Layer 2: browser SpeechRecognition fallback
+      interface SpeechRecognitionLike {
+        lang: string
+        continuous: boolean
+        interimResults: boolean
+        onresult: ((event: { results: SpeechRecognitionResultList }) => void) | null
+        onerror: (() => void) | null
+        start: () => void
+        stop: () => void
+      }
+      type SRCtor = new () => SpeechRecognitionLike
+      const SRCtor: SRCtor | undefined =
+        typeof window !== 'undefined'
+          ? ((window as unknown as { SpeechRecognition?: SRCtor; webkitSpeechRecognition?: SRCtor })
+              .SpeechRecognition ??
+              (window as unknown as { webkitSpeechRecognition?: SRCtor }).webkitSpeechRecognition)
+          : undefined
+
+      if (SRCtor) {
+        return new Promise<void>((resolve) => {
+          const recognition = new SRCtor()
+          recognition.lang = 'en-US'
+          recognition.continuous = false
+          recognition.interimResults = false
+          recognition.onresult = (event) => {
+            const transcript = event.results[0]?.[0]?.transcript ?? ''
+            if (transcript) applyTranscript(transcript)
+            resolve()
+          }
+          recognition.onerror = () => {
+            setTranscribeError((prev) => ({
+              ...prev,
+              [activityId]: 'Could not transcribe — please type your answer instead',
+            }))
+            resolve()
+          }
+          recognition.start()
+        })
+      }
+
+      setTranscribeError((prev) => ({
+        ...prev,
+        [activityId]: 'Could not transcribe — please type your answer instead',
+      }))
+    }
+
+    void doTranscribe().finally(() => {
+      setTranscribingActivityId((prev) => ({ ...prev, [activityId]: false }))
+      setRecordingActivityId(null)
+      voiceRecorder.reset()
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceRecorder.audioBlob])
 
   if (!phase || !week || !currentDay) {
     return (
@@ -417,13 +521,13 @@ export default function StudyDayClassPage() {
       })
   }
 
-  const handleGetFeedback = (activityId: string, text: string) => {
+  const handleGetFeedback = (activityId: string, text: string, speakingMode = false) => {
     if (!text.trim()) return
     setActivityFeedbackLoading((prev) => ({ ...prev, [activityId]: true }))
     void fetch('/api/ai-feedback', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userText: text, sentenceFrames }),
+      body: JSON.stringify({ userText: text, sentenceFrames, speakingMode }),
     })
       .then((res) => (res.ok ? res.json() : null))
       .then((data: FeedbackResponse | null) => {
@@ -435,6 +539,20 @@ export default function StudyDayClassPage() {
       .finally(() => {
         setActivityFeedbackLoading((prev) => ({ ...prev, [activityId]: false }))
       })
+  }
+
+  const handleVoiceRecord = async (activityId: string) => {
+    if (voiceRecorder.isRecording && recordingActivityId === activityId) {
+      voiceRecorder.stopRecording()
+      return
+    }
+    if (voiceRecorder.isRecording) {
+      voiceRecorder.stopRecording()
+    }
+    pendingActivityRef.current = activityId
+    setRecordingActivityId(activityId)
+    setTranscribeError((prev) => ({ ...prev, [activityId]: null }))
+    await voiceRecorder.startRecording()
   }
 
   const errorCategoryOptions = Object.values(STUDY_ERROR_CATEGORY)
@@ -933,20 +1051,61 @@ export default function StudyDayClassPage() {
                 rows={8}
                 className="mt-4 w-full rounded-xl border border-[#2a2a2a] bg-[#101010] px-4 py-3 text-sm text-gray-200 placeholder:text-gray-600 focus:border-green-500/40 focus:outline-none"
               />
+              {recordingActivityId === activity.id && voiceRecorder.isRecording && (
+                <div className="mt-2 flex items-center gap-2 text-xs text-red-400">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+                  Recording… {voiceRecorder.seconds}s / 120s
+                </div>
+              )}
+              {transcribingActivityId[activity.id] && (
+                <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
+                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-teal-400 border-t-transparent" />
+                  Transcribing…
+                </div>
+              )}
+              {transcribeError[activity.id] && (
+                <p className="mt-2 text-xs text-amber-300">{transcribeError[activity.id]}</p>
+              )}
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="inline-flex items-center gap-2 text-xs text-gray-500">
                   <Save size={14} />
                   Saved automatically in this browser
                 </div>
-                <button
-                  type="button"
-                  disabled={!(writtenWork[activity.id] ?? '').trim() || activityFeedbackLoading[activity.id]}
-                  onClick={() => handleGetFeedback(activity.id, writtenWork[activity.id] ?? '')}
-                  className="inline-flex items-center gap-2 rounded-lg border border-teal-400/30 bg-teal-400/10 px-3 py-1.5 text-xs text-teal-100 transition-colors hover:bg-teal-400/20 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <Sparkles size={13} />
-                  Check my writing
-                </button>
+                <div className="flex items-center gap-2">
+                  {voiceRecorder.isSupported && (
+                    <button
+                      type="button"
+                      disabled={!!transcribingActivityId[activity.id]}
+                      onClick={() => { void handleVoiceRecord(activity.id) }}
+                      aria-label={
+                        recordingActivityId === activity.id && voiceRecorder.isRecording
+                          ? 'Stop recording'
+                          : 'Record voice answer'
+                      }
+                      className={cn(
+                        'inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+                        recordingActivityId === activity.id && voiceRecorder.isRecording
+                          ? 'border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20'
+                          : 'border-[#2a2a2a] bg-[#151515] text-gray-300 hover:border-[#3a3a3a]'
+                      )}
+                    >
+                      {recordingActivityId === activity.id && voiceRecorder.isRecording ? (
+                        <><Square size={13} />Stop</>
+                      ) : (
+                        <><Mic size={13} />Speak</>
+                      )}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={!(writtenWork[activity.id] ?? '').trim() || !!activityFeedbackLoading[activity.id]}
+                    onClick={() => handleGetFeedback(activity.id, writtenWork[activity.id] ?? '')}
+                    className="inline-flex items-center gap-2 rounded-lg border border-teal-400/30 bg-teal-400/10 px-3 py-1.5 text-xs text-teal-100 transition-colors hover:bg-teal-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Sparkles size={13} />
+                    Check my writing
+                  </button>
+                </div>
               </div>
               {(activityFeedbackLoading[activity.id] || activityFeedback[activity.id]) && (
                 <FeedbackPanel
