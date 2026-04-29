@@ -766,7 +766,7 @@ export default function StudyDayClassPage() {
                 <p className="mt-1 text-xs text-gray-500">Check each question only after you can answer it without looking at the resource.</p>
                 <div className="mt-3 space-y-3">
                   {week.resources[0].quiz.comprehension.map((question, index) => {
-                    const itemId = `quiz-comprehension-${week.resources[0]?.id ?? 'resource'}-${index}`
+                    const itemId = `quiz-comprehension-${week.resources[0].id}-${index}`
                     const isChecked = checkedQuizItems.includes(itemId)
                     return (
                       <button
@@ -824,7 +824,7 @@ export default function StudyDayClassPage() {
                 <p className="mt-1 text-xs text-gray-500">Expand each phrase to see a practice challenge. Say the answer aloud before revealing it.</p>
                 <div className="mt-3 space-y-2">
                   {week.resources[0].quiz.vocabulary.map((item, index) => {
-                    const itemId = `quiz-vocab-${week.resources[0]?.id ?? 'resource'}-${index}`
+                    const itemId = `quiz-vocab-${week.resources[0].id}-${index}`
                     const isExpanded = expandedVocabItems.includes(itemId)
                     return (
                       <div key={itemId} className="rounded-xl border border-[#242424] bg-[#151515] overflow-hidden">
