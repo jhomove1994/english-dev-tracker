@@ -177,9 +177,6 @@ function getWeekDayId(week: StudyWeek, day: number) {
   return `${week.id}-day-${day}`
 }
 
-function fillSupportBlank(frame: string) {
-  return frame
-}
 
 function formatFramesWithNumbers(frames: string[]): string {
   return frames.map((f, i) => `(${i + 1}) "${f}"`).join(', ')
@@ -1729,8 +1726,8 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
     const glossary = dayClass.glossary
     const prerequisites = buildPrerequisites(week, dayClass.day, glossary)
     const sentenceStarters = [
-      ...(week.lessons[0]?.sentenceFrames.slice(0, 3).map(fillSupportBlank) ?? []),
-      fillSupportBlank(week.lessons[1]?.sentenceFrames[1] ?? ''),
+      ...(week.lessons[0]?.sentenceFrames.slice(0, 3) ?? []),
+      week.lessons[1]?.sentenceFrames[1] ?? '',
     ].filter(Boolean).slice(0, 4)
 
     const enrichedDayClass: StudyDayClass = {
