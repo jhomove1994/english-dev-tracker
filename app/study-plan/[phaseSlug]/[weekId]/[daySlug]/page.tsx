@@ -12,8 +12,10 @@ import {
   Copy,
   ExternalLink,
   FileText,
+  Headphones,
   Languages,
   Lock,
+  MessageSquare,
   Mic,
   Plus,
   Save,
@@ -23,7 +25,7 @@ import {
   Video,
   Volume2,
 } from 'lucide-react'
-import { ALL_STUDY_WEEKS, getPhaseBySlug } from '@/lib/data/study-plan'
+import { ALL_STUDY_WEEKS, getPhaseBySlug, type StudyResource } from '@/lib/data/study-plan'
 import {
   DAY_AI_FEEDBACK_STORAGE_KEY,
   buildWeekDayClasses,
@@ -56,6 +58,22 @@ import {
 import { usePersistentStorage } from '@/lib/hooks/usePersistentStorage'
 import { useSpeech } from '@/lib/hooks/useSpeech'
 
+function getResourceEmbedUrl(url: string, channel: string): string | null {
+  if (channel === 'TED' && url.includes('ted.com/talks/')) {
+    const slug = url.split('ted.com/talks/')[1]?.split('?')[0]
+    return slug ? `https://embed.ted.com/talks/${slug}` : null
+  }
+  if (url.includes('youtube.com/watch')) {
+    const videoId = new URLSearchParams(url.split('?')[1]).get('v')
+    return videoId ? `https://www.youtube.com/embed/${videoId}` : null
+  }
+  if (url.includes('youtu.be/')) {
+    const videoId = url.split('youtu.be/')[1]?.split('?')[0]
+    return videoId ? `https://www.youtube.com/embed/${videoId}` : null
+  }
+  return null
+}
+
 const STUDY_SUPPORT_VIEW = {
   ORIGINAL: 'original',
   SIMPLE: 'simple',
@@ -63,6 +81,64 @@ const STUDY_SUPPORT_VIEW = {
 } as const
 
 type StudySupportView = (typeof STUDY_SUPPORT_VIEW)[keyof typeof STUDY_SUPPORT_VIEW]
+
+function ResourceCard({
+  resource,
+  reference,
+}: {
+  resource: StudyResource
+  reference: { whyToday: string } | undefined
+}) {
+  const embedUrl = getResourceEmbedUrl(resource.url, resource.channel)
+  return (
+    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <Headphones size={18} className="mt-0.5 shrink-0 text-amber-300" />
+          <div>
+            <p className="text-xs uppercase tracking-wide text-amber-400">{resource.channel} · Listening resource</p>
+            <h3 className="mt-1 text-lg font-semibold text-white">{resource.title}</h3>
+            {reference && <p className="mt-1 text-sm text-gray-400">{reference.whyToday}</p>}
+            <p className="mt-1 text-sm text-gray-500">{resource.studyObjective}</p>
+          </div>
+        </div>
+        <a
+          href={resource.url}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-100 transition-colors hover:bg-amber-500/20"
+        >
+          <ExternalLink size={14} />
+          Open resource
+        </a>
+      </div>
+
+      {embedUrl && (
+        <div className="mt-5 aspect-video w-full overflow-hidden rounded-xl border border-[#242424]">
+          <iframe
+            src={embedUrl}
+            className="h-full w-full"
+            allowFullScreen
+            title={resource.title}
+          />
+        </div>
+      )}
+
+      {resource.keyPhrases.length > 0 && (
+        <div className="mt-5">
+          <p className="text-xs uppercase tracking-wide text-gray-500">Key phrases to listen for</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {resource.keyPhrases.map((phrase) => (
+              <span key={phrase} className="rounded-full border border-[#2a2a2a] bg-[#151515] px-3 py-1 text-xs text-gray-300">
+                &ldquo;{phrase}&rdquo;
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function StudyDayClassPage() {
   const params = useParams<{ phaseSlug: string; weekId: string; daySlug: string }>()
@@ -82,6 +158,8 @@ export default function StudyDayClassPage() {
   const [supportModeEnabled, setSupportModeEnabled] = useState(true)
   const [sectionSupportView, setSectionSupportView] = useState<Record<string, StudySupportView>>({})
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
+  const [checkedQuizItems, setCheckedQuizItems] = useState<string[]>([])
+  const [expandedVocabItems, setExpandedVocabItems] = useState<string[]>([])
   const { speak, isSupported: ttsSupported } = useSpeech()
 
   const phaseUnlocked = phase ? isPhaseUnlocked(phase.id - 1, completedLessons, completedCheckpoints, completedDayChecks) : false
@@ -455,6 +533,10 @@ export default function StudyDayClassPage() {
         </div>
       </div>
 
+      {week.resources[0] && (
+        <ResourceCard resource={week.resources[0]} reference={currentDay.references[0]} />
+      )}
+
       <div className="space-y-4">
         {supportModeEnabled && currentDay.sections.length > 1 && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#1f1f1f] bg-[#111111] p-4">
@@ -566,6 +648,23 @@ export default function StudyDayClassPage() {
               </div>
             ) : (
               <>
+                {section.title.startsWith('Listening classroom') && week.resources[0] && (
+                  <a
+                    href={week.resources[0].url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 transition-colors hover:bg-amber-500/10"
+                  >
+                    <div className="flex items-center gap-2 text-sm">
+                      <Headphones size={15} className="shrink-0 text-amber-300" />
+                      <span>
+                        <span className="text-xs uppercase tracking-wide text-amber-400">{week.resources[0].channel} · </span>
+                        <span className="text-amber-100">{week.resources[0].title}</span>
+                      </span>
+                    </div>
+                    <ExternalLink size={13} className="shrink-0 text-amber-400" />
+                  </a>
+                )}
                 <div className="mt-4 space-y-3">
                   {section.paragraphs.map((paragraph) => (
                     <div key={paragraph} className="flex items-start gap-2 group">
@@ -649,11 +748,114 @@ export default function StudyDayClassPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-6">
-        <div className="flex items-center gap-2">
-          <Bot size={18} className="text-cyan-400" />
-          <h3 className="text-lg font-semibold text-white">Validate this class with free AI</h3>
+      {currentDay.day === 3 && week.resources[0]?.quiz && (
+        <div className="rounded-xl border border-amber-500/20 bg-[#111111] p-6">
+          <div className="flex items-center gap-2">
+            <Headphones size={18} className="text-amber-300" />
+            <h3 className="text-lg font-semibold text-white">Resource comprehension quiz</h3>
+          </div>
+          <p className="mt-2 text-sm text-gray-400">
+            Complete these exercises after working through the resource. They turn passive consumption into active learning.
+          </p>
+
+          <div className="mt-6 space-y-6">
+            {week.resources[0].quiz.comprehension.length > 0 && (
+              <div>
+                <p className="text-xs uppercase tracking-wide text-amber-400">Comprehension checks</p>
+                <p className="mt-1 text-xs text-gray-500">Check each question only after you can answer it without looking at the resource.</p>
+                <div className="mt-3 space-y-3">
+                  {week.resources[0].quiz.comprehension.map((question, index) => {
+                    const itemId = `quiz-comprehension-${week.resources[0]?.id ?? 'resource'}-${index}`
+                    const isChecked = checkedQuizItems.includes(itemId)
+                    return (
+                      <button
+                        key={itemId}
+                        type="button"
+                        onClick={() =>
+                          setCheckedQuizItems((current) =>
+                            isChecked ? current.filter((id) => id !== itemId) : [...current, itemId]
+                          )
+                        }
+                        className={cn(
+                          'flex w-full items-start gap-3 rounded-xl border p-4 text-left text-sm transition-colors',
+                          isChecked
+                            ? 'border-green-500/30 bg-green-500/5 text-green-200'
+                            : 'border-[#242424] bg-[#151515] text-gray-300 hover:border-[#3a3a3a]'
+                        )}
+                      >
+                        {isChecked ? <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-green-400" /> : <Circle size={16} className="mt-0.5 shrink-0 text-gray-600" />}
+                        {question}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {week.resources[0].quiz.speaking.length > 0 && (
+              <div>
+                <p className="text-xs uppercase tracking-wide text-amber-400">Speaking prompts</p>
+                <p className="mt-1 text-xs text-gray-500">Answer each prompt aloud for 30–60 seconds. Use the speaker button to hear the question first.</p>
+                <div className="mt-3 space-y-3">
+                  {week.resources[0].quiz.speaking.map((prompt, index) => (
+                    <div key={`quiz-speaking-${index}`} className="flex items-start gap-3 rounded-xl border border-[#242424] bg-[#151515] p-4">
+                      <MessageSquare size={15} className="mt-0.5 shrink-0 text-amber-400" />
+                      <p className="flex-1 text-sm text-gray-300">{prompt}</p>
+                      {ttsSupported && (
+                        <button
+                          type="button"
+                          onClick={() => speak(prompt)}
+                          className="shrink-0 flex h-7 w-7 items-center justify-center rounded-full border border-[#2a2a2a] text-gray-400 transition-colors hover:border-amber-500/40 hover:text-amber-400"
+                          title="Hear prompt"
+                        >
+                          <Volume2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {week.resources[0].quiz.vocabulary.length > 0 && (
+              <div>
+                <p className="text-xs uppercase tracking-wide text-amber-400">Vocabulary in context</p>
+                <p className="mt-1 text-xs text-gray-500">Expand each phrase to see a practice challenge. Say the answer aloud before revealing it.</p>
+                <div className="mt-3 space-y-2">
+                  {week.resources[0].quiz.vocabulary.map((item, index) => {
+                    const itemId = `quiz-vocab-${week.resources[0]?.id ?? 'resource'}-${index}`
+                    const isExpanded = expandedVocabItems.includes(itemId)
+                    return (
+                      <div key={itemId} className="rounded-xl border border-[#242424] bg-[#151515] overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedVocabItems((current) =>
+                              isExpanded ? current.filter((id) => id !== itemId) : [...current, itemId]
+                            )
+                          }
+                          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm text-white hover:bg-[#1a1a1a] transition-colors"
+                        >
+                          <span className="font-medium">&ldquo;{item.phrase}&rdquo;</span>
+                          <span className="shrink-0 text-xs text-gray-500">{isExpanded ? '▲ hide' : '▼ practice'}</span>
+                        </button>
+                        {isExpanded && (
+                          <div className="border-t border-[#242424] px-4 py-3">
+                            <p className="text-xs uppercase tracking-wide text-gray-500">Practice challenge</p>
+                            <p className="mt-1 text-sm text-gray-300">{item.practice}</p>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+      )}
+
+      <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-6">
         <p className="mt-3 text-sm text-gray-400">{currentDay.aiValidation.intro}</p>
         <div className="mt-4 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4 text-sm text-cyan-100">
           {currentDay.aiValidation.honestyNote}
