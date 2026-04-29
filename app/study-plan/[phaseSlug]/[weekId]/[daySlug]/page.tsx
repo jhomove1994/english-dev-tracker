@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
@@ -156,6 +156,8 @@ export default function StudyDayClassPage() {
   const [studyErrors, setStudyErrors] = usePersistentStorage<StudyErrorRecord[]>(STUDY_ERROR_STORAGE_KEY, getStudyErrors())
   const [coldAttemptTexts, setColdAttemptTexts] = usePersistentStorage<Record<string, string>>('day_cold_attempt_v1', {})
   const [coldAttemptDone, setColdAttemptDone] = usePersistentStorage<string[]>('day_cold_attempt_done_v1', [])
+  const [sectionCompletions, setSectionCompletions] = usePersistentStorage<Record<string, boolean>>('day_section_completions_v1', {})
+  const guidedModelSentinelRef = useRef<HTMLDivElement | null>(null)
   const [addedGlossaryIds, setAddedGlossaryIds] = useState<string[]>([])
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null)
   const [copyError, setCopyError] = useState<string | null>(null)
@@ -201,6 +203,31 @@ export default function StudyDayClassPage() {
     }
   }, [supportModeEnabled, currentDay])
 
+  useEffect(() => {
+    if (!currentDay) return
+    const coldAttemptComplete =
+      coldAttemptDone.includes(currentDay.id) || !!coldAttemptTexts[currentDay.id]
+    if (!coldAttemptComplete) return
+    const el = guidedModelSentinelRef.current
+    if (!el) return
+    const guidedSection = currentDay.sections.find((s) => s.title.startsWith('Guided model'))
+    if (!guidedSection) return
+    const key = `${currentDay.id}:${guidedSection.id}`
+    if (sectionCompletions[key]) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setSectionCompletions((prev) => ({ ...prev, [key]: true }))
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.5 }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDay, coldAttemptDone, coldAttemptTexts, sectionCompletions])
+
   if (!phase || !week || !currentDay) {
     return (
       <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-6 text-sm text-gray-300">
@@ -245,6 +272,31 @@ export default function StudyDayClassPage() {
 
   const isDone = completedDayChecks.includes(currentDay.id)
   const isColdAttemptComplete = coldAttemptDone.includes(currentDay.id) || !!coldAttemptTexts[currentDay.id]
+
+  const MIN_WRITTEN_ACTIVITY_CHARS = 30
+  const TRACKED_WRITTEN_ACTIVITY_COUNT = 2
+  const TOTAL_TRACKED_SECTIONS = 5
+
+  const getSectionKey = (sectionId: string) => `${currentDay.id}:${sectionId}`
+  const isSectionComplete = (sectionId: string) => !!sectionCompletions[getSectionKey(sectionId)]
+  const markSectionComplete = (sectionId: string) =>
+    setSectionCompletions((prev) => ({ ...prev, [getSectionKey(sectionId)]: true }))
+
+  const grammarLessonSection = currentDay.sections.find((s) => s.title.startsWith('Grammar lesson'))
+  const guidedModelSection = currentDay.sections.find((s) => s.title.startsWith('Guided model'))
+  const writtenActivity1 = currentDay.writtenActivities[0] ?? null
+  const writtenActivity2 = currentDay.writtenActivities[1] ?? null
+  const isWritten1Complete = writtenActivity1 ? (writtenWork[writtenActivity1.id] ?? '').length >= MIN_WRITTEN_ACTIVITY_CHARS : false
+  const isWritten2Complete = writtenActivity2 ? (writtenWork[writtenActivity2.id] ?? '').length >= MIN_WRITTEN_ACTIVITY_CHARS : false
+
+  const completedSectionCount = [
+    isColdAttemptComplete,
+    grammarLessonSection ? isSectionComplete(grammarLessonSection.id) : false,
+    guidedModelSection ? isSectionComplete(guidedModelSection.id) : false,
+    isWritten1Complete,
+    isWritten2Complete,
+  ].filter(Boolean).length
+  const progressPercent = Math.round((completedSectionCount / TOTAL_TRACKED_SECTIONS) * 100)
 
   const updateWriting = (activityId: string, value: string) => {
     const updated = { ...writtenWork, [activityId]: value }
@@ -385,10 +437,29 @@ export default function StudyDayClassPage() {
         </div>
       </div>
 
+      <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-gray-300">{completedSectionCount} of 5 sections completed</p>
+          <p className="text-sm font-medium text-teal-400">{progressPercent}%</p>
+        </div>
+        <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#242424]">
+          <div
+            className="h-full rounded-full bg-teal-500 transition-all duration-500 ease-out"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      </div>
+
       <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-6">
-        <div className="flex items-center gap-2">
-          <PenLine size={18} className="text-orange-300" />
-          <h3 className="text-lg font-semibold text-white">Cold attempt — before you read anything</h3>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <PenLine size={18} className="text-orange-300" />
+            <h3 className="text-lg font-semibold text-white">Cold attempt — before you read anything</h3>
+          </div>
+          {isColdAttemptComplete
+            ? <CheckCircle2 size={16} className="shrink-0 text-teal-400" />
+            : <Circle size={16} className="shrink-0 text-gray-600" />
+          }
         </div>
         <p className="mt-2 text-sm text-gray-400">
           Before reading anything — write or say how you would introduce yourself as a developer right now. No help yet.
@@ -637,12 +708,18 @@ export default function StudyDayClassPage() {
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <h3 className="text-lg font-semibold text-white">{section.title}</h3>
-              {supportModeEnabled && (
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { id: STUDY_SUPPORT_VIEW.ORIGINAL, label: 'Original' },
-                    { id: STUDY_SUPPORT_VIEW.SIMPLE, label: 'Simple English' },
-                    { id: STUDY_SUPPORT_VIEW.GRAMMAR, label: 'Grammar coach' },
+              <div className="flex flex-wrap items-center gap-2">
+                {(section.id === grammarLessonSection?.id || section.id === guidedModelSection?.id) && (
+                  isSectionComplete(section.id)
+                    ? <CheckCircle2 size={16} className="shrink-0 text-teal-400" />
+                    : <Circle size={16} className="shrink-0 text-gray-600" />
+                )}
+                {supportModeEnabled && (
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { id: STUDY_SUPPORT_VIEW.ORIGINAL, label: 'Original' },
+                      { id: STUDY_SUPPORT_VIEW.SIMPLE, label: 'Simple English' },
+                      { id: STUDY_SUPPORT_VIEW.GRAMMAR, label: 'Grammar coach' },
                   ].map((viewOption) => (
                     <button
                       key={viewOption.id}
@@ -666,6 +743,7 @@ export default function StudyDayClassPage() {
                 </div>
               )}
             </div>
+          </div>
 
             {(sectionSupportView[section.id] ?? STUDY_SUPPORT_VIEW.ORIGINAL) === STUDY_SUPPORT_VIEW.SIMPLE ? (
               <div className="mt-4 space-y-4">
@@ -756,6 +834,30 @@ export default function StudyDayClassPage() {
                 )}
               </>
             )}
+
+            {section.id === grammarLessonSection?.id && !isSectionComplete(section.id) && (
+              <div className="mt-4 flex flex-col items-start gap-2">
+                <button
+                  type="button"
+                  onClick={() => markSectionComplete(section.id)}
+                  className="inline-flex items-center gap-2 rounded-lg border border-teal-400/30 bg-teal-400/10 px-4 py-2 text-sm text-teal-100 transition-colors hover:bg-teal-400/20"
+                >
+                  <CheckCircle2 size={16} />
+                  Mark grammar section complete
+                </button>
+                <button
+                  type="button"
+                  onClick={() => markSectionComplete(section.id)}
+                  className="text-xs text-gray-500 transition-colors underline-offset-2 hover:text-gray-300 hover:underline"
+                >
+                  Skip
+                </button>
+              </div>
+            )}
+
+            {section.id === guidedModelSection?.id && (
+              <div ref={guidedModelSentinelRef} className="h-px" aria-hidden="true" />
+            )}
           </div>
         ))}
       </div>
@@ -766,9 +868,16 @@ export default function StudyDayClassPage() {
           These activities are dynamic: write directly here and your answers stay saved inside the app.
         </p>
         <div className="mt-4 space-y-5">
-          {currentDay.writtenActivities.map((activity) => (
+          {currentDay.writtenActivities.map((activity, activityIndex) => (
             <div key={activity.id} className="rounded-xl border border-[#242424] bg-[#151515] p-4">
-              <h4 className="font-medium text-white">{activity.title}</h4>
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="font-medium text-white">{activity.title}</h4>
+                {activityIndex < TRACKED_WRITTEN_ACTIVITY_COUNT && (
+                  (activityIndex === 0 ? isWritten1Complete : isWritten2Complete)
+                    ? <CheckCircle2 size={16} className="shrink-0 text-teal-400" />
+                    : <Circle size={16} className="shrink-0 text-gray-600" />
+                )}
+              </div>
               <p className="mt-2 text-sm text-gray-400">{activity.instructions}</p>
               {supportModeEnabled && (
                 <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr_1fr]">
