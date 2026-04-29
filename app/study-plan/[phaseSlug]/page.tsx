@@ -122,10 +122,11 @@ export default function StudyPhasePage() {
   }
 
   const isAllCriteriaChecked = (lessonId: string, count: number) => {
+    if (count === 0) return true
     for (let i = 0; i < count; i++) {
       if (!lessonCriteria[getLessonCriteriaKey(lessonId, i)]) return false
     }
-    return count > 0
+    return true
   }
 
   const toggleCheckpoint = (checkpointId: string) => {
@@ -329,7 +330,13 @@ export default function StudyPhasePage() {
                     type="button"
                     disabled={!canMarkDone}
                     onClick={() => toggleLesson(lesson.id)}
-                    title={!currentWeekUnlocked ? 'Complete the previous week first' : !allCriteriaMet && !done ? 'Check all pass criteria below before marking done' : undefined}
+                    title={
+                      !currentWeekUnlocked
+                        ? 'Complete the previous week first'
+                        : !allCriteriaMet && !done
+                          ? 'Check all pass criteria below before marking done'
+                          : undefined
+                    }
                     className={cn(
                       'inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors',
                       done
