@@ -7,6 +7,7 @@ export interface UseVoiceRecorderReturn {
   seconds: number
   audioBlob: Blob | null
   isSupported: boolean
+  permissionError: string | null
   startRecording: () => Promise<void>
   stopRecording: () => void
   reset: () => void
@@ -19,6 +20,7 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
   const [isRecording, setIsRecording] = useState(false)
   const [seconds, setSeconds] = useState(0)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
+  const [permissionError, setPermissionError] = useState<string | null>(null)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
@@ -71,8 +73,13 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
     let stream: MediaStream
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-    } catch {
-      // Permission denied or not available — surface nothing, let the caller handle fallback
+      setPermissionError(null)
+    } catch (err) {
+      const msg =
+        err instanceof Error && err.name === 'NotAllowedError'
+          ? 'Microphone permission denied. Allow access in your browser settings.'
+          : 'Could not access microphone.'
+      setPermissionError(msg)
       return
     }
 
@@ -127,6 +134,7 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
     seconds,
     audioBlob,
     isSupported,
+    permissionError,
     startRecording,
     stopRecording,
     reset,

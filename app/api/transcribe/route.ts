@@ -6,6 +6,10 @@ const WHISPER_PROMPT =
   'Developer speaking about their role, tech stack, and current project. ' +
   'Technical terms: React, TypeScript, Node.js, API, backend, frontend, fullstack, deploy, repository, pull request'
 
+// Minimum blob size to reject silence/empty recordings.
+// A real webm container with no audio payload is around 100–200 bytes; 300 bytes is a safe floor.
+const MIN_AUDIO_BLOB_SIZE = 300
+
 // ---------------------------------------------------------------------------
 // POST /api/transcribe
 // Body: FormData { audio: Blob }
@@ -27,10 +31,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const audioBlob = audioField
-  const durationSeconds = audioBlob.size / (16000 * 2) // rough estimate
+  // Rough duration estimate: webm/opus at ~16 kHz 16-bit mono ≈ 32 kB/s; actual bitrate varies.
+  const durationSeconds = audioBlob.size / (16000 * 2)
 
-  // Reject obviously empty blobs (< ~300 bytes is just webm container overhead)
-  if (audioBlob.size < 300) {
+  // Reject obviously empty blobs (< MIN_AUDIO_BLOB_SIZE is just webm container overhead)
+  if (audioBlob.size < MIN_AUDIO_BLOB_SIZE) {
     return NextResponse.json({ transcript: '', error: 'No audio detected' }, { status: 422 })
   }
 

@@ -65,6 +65,27 @@ import { SectionGate } from './SectionGate'
 import { FeedbackPanel } from './FeedbackPanel'
 import type { FeedbackResponse } from '@/lib/ai-feedback'
 
+// Browser Speech Recognition constructor type (not in standard TS DOM lib)
+interface SpeechRecognitionLike {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  onresult: ((event: { results: SpeechRecognitionResultList }) => void) | null
+  onerror: (() => void) | null
+  start: () => void
+  stop: () => void
+}
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike
+
+function getBrowserSpeechRecognition(): SpeechRecognitionCtor | undefined {
+  if (typeof window === 'undefined') return undefined
+  const w = window as unknown as {
+    SpeechRecognition?: SpeechRecognitionCtor
+    webkitSpeechRecognition?: SpeechRecognitionCtor
+  }
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition
+}
+
 function getResourceEmbedUrl(url: string, channel: string): string | null {
   if (channel === 'TED' && url.includes('ted.com/talks/')) {
     const slug = url.split('ted.com/talks/')[1]?.split('?')[0]
@@ -284,27 +305,13 @@ export default function StudyDayClassPage() {
           applyTranscript(data.transcript)
           return
         }
+        // Groq returned no transcript (empty audio, quota exceeded, or key missing) → fall through
       } catch {
-        // network error — fall through to browser STT
+        // Fetch or JSON parse failed (network error, server error) → fall through to browser STT
       }
 
       // Layer 2: browser SpeechRecognition fallback
-      interface SpeechRecognitionLike {
-        lang: string
-        continuous: boolean
-        interimResults: boolean
-        onresult: ((event: { results: SpeechRecognitionResultList }) => void) | null
-        onerror: (() => void) | null
-        start: () => void
-        stop: () => void
-      }
-      type SRCtor = new () => SpeechRecognitionLike
-      const SRCtor: SRCtor | undefined =
-        typeof window !== 'undefined'
-          ? ((window as unknown as { SpeechRecognition?: SRCtor; webkitSpeechRecognition?: SRCtor })
-              .SpeechRecognition ??
-              (window as unknown as { webkitSpeechRecognition?: SRCtor }).webkitSpeechRecognition)
-          : undefined
+      const SRCtor = getBrowserSpeechRecognition()
 
       if (SRCtor) {
         return new Promise<void>((resolve) => {
@@ -1063,8 +1070,10 @@ export default function StudyDayClassPage() {
                   Transcribing…
                 </div>
               )}
-              {transcribeError[activity.id] && (
-                <p className="mt-2 text-xs text-amber-300">{transcribeError[activity.id]}</p>
+              {(transcribeError[activity.id] ?? voiceRecorder.permissionError) && (
+                <p className="mt-2 text-xs text-amber-300">
+                  {transcribeError[activity.id] ?? voiceRecorder.permissionError}
+                </p>
               )}
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="inline-flex items-center gap-2 text-xs text-gray-500">
