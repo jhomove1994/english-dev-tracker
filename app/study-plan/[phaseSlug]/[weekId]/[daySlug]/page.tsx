@@ -17,6 +17,7 @@ import {
   Lock,
   MessageSquare,
   Mic,
+  PenLine,
   Plus,
   Save,
   Sparkles,
@@ -153,6 +154,8 @@ export default function StudyDayClassPage() {
   const [writtenWork, setWrittenWork] = usePersistentStorage<Record<string, string>>(DAY_WRITING_STORAGE_KEY, {})
   const [aiFeedback, setAiFeedback] = usePersistentStorage<Record<string, string>>(DAY_AI_FEEDBACK_STORAGE_KEY, {})
   const [studyErrors, setStudyErrors] = usePersistentStorage<StudyErrorRecord[]>(STUDY_ERROR_STORAGE_KEY, getStudyErrors())
+  const [coldAttemptTexts, setColdAttemptTexts] = usePersistentStorage<Record<string, string>>('day_cold_attempt_v1', {})
+  const [coldAttemptDone, setColdAttemptDone] = usePersistentStorage<string[]>('day_cold_attempt_done_v1', [])
   const [addedGlossaryIds, setAddedGlossaryIds] = useState<string[]>([])
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null)
   const [copyError, setCopyError] = useState<string | null>(null)
@@ -241,6 +244,7 @@ export default function StudyDayClassPage() {
   }
 
   const isDone = completedDayChecks.includes(currentDay.id)
+  const isColdAttemptComplete = coldAttemptDone.includes(currentDay.id) || !!coldAttemptTexts[currentDay.id]
 
   const updateWriting = (activityId: string, value: string) => {
     const updated = { ...writtenWork, [activityId]: value }
@@ -381,6 +385,49 @@ export default function StudyDayClassPage() {
         </div>
       </div>
 
+      <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-6">
+        <div className="flex items-center gap-2">
+          <PenLine size={18} className="text-orange-300" />
+          <h3 className="text-lg font-semibold text-white">Cold attempt — before you read anything</h3>
+        </div>
+        <p className="mt-2 text-sm text-gray-400">
+          Before reading anything — write or say how you would introduce yourself as a developer right now. No help yet.
+        </p>
+        <textarea
+          value={coldAttemptTexts[currentDay.id] ?? ''}
+          onChange={(event) => setColdAttemptTexts((current) => ({ ...current, [currentDay.id]: event.target.value }))}
+          placeholder="Write your attempt here..."
+          rows={6}
+          className="mt-4 w-full rounded-xl border border-[#2a2a2a] bg-[#101010] px-4 py-3 text-sm text-gray-200 placeholder:text-gray-600 focus:border-orange-500/40 focus:outline-none"
+        />
+        {isColdAttemptComplete ? (
+          <div className="mt-3 inline-flex items-center gap-2 text-xs text-gray-500">
+            <Save size={14} />
+            Attempt saved — lesson content is unlocked below
+          </div>
+        ) : (
+          <div className="mt-4 flex flex-col items-start gap-3">
+            <button
+              type="button"
+              onClick={() => setColdAttemptDone((current) => [...current, currentDay.id])}
+              className="inline-flex items-center gap-2 rounded-lg border border-orange-400/30 bg-orange-400/10 px-4 py-2 text-sm text-orange-100 transition-colors hover:bg-orange-400/20"
+            >
+              <CheckCircle2 size={16} />
+              I wrote my attempt
+            </button>
+            <button
+              type="button"
+              onClick={() => setColdAttemptDone((current) => [...current, currentDay.id])}
+              className="text-xs text-gray-500 hover:text-gray-300 transition-colors underline-offset-2 hover:underline"
+            >
+              Skip cold attempt
+            </button>
+          </div>
+        )}
+      </div>
+
+      {isColdAttemptComplete && (
+        <>
       <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -1321,6 +1368,9 @@ export default function StudyDayClassPage() {
           )}
         </div>
       </div>
+
+        </>
+      )}
 
       {supportModeEnabled && (
         <div
