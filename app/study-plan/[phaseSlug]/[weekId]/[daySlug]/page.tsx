@@ -60,6 +60,8 @@ import { usePersistentStorage } from '@/lib/hooks/usePersistentStorage'
 import { useSpeech } from '@/lib/hooks/useSpeech'
 import { useSupportMode } from '@/lib/contexts/SupportModeContext'
 import { SectionGate } from './SectionGate'
+import { FeedbackPanel } from './FeedbackPanel'
+import type { FeedbackResponse } from '@/lib/ai-feedback'
 
 function getResourceEmbedUrl(url: string, channel: string): string | null {
   if (channel === 'TED' && url.includes('ted.com/talks/')) {
@@ -169,6 +171,8 @@ export default function StudyDayClassPage() {
   const [checkedQuizItems, setCheckedQuizItems] = useState<string[]>([])
   const [expandedVocabItems, setExpandedVocabItems] = useState<string[]>([])
   const [gatePassedThisSession, setGatePassedThisSession] = useState(false)
+  const [activityFeedback, setActivityFeedback] = useState<Record<string, FeedbackResponse | null>>({})
+  const [activityFeedbackLoading, setActivityFeedbackLoading] = useState<Record<string, boolean>>({})
   const { speak, isSupported: ttsSupported } = useSpeech()
 
   const phaseUnlocked = phase ? isPhaseUnlocked(phase.id - 1, completedLessons, completedCheckpoints, completedDayChecks) : false
@@ -190,6 +194,10 @@ export default function StudyDayClassPage() {
   const currentDayErrors = useMemo(
     () => studyErrors.filter((error) => error.dayId === (currentDay?.id ?? '')),
     [studyErrors, currentDay?.id]
+  )
+  const sentenceFrames = useMemo(
+    () => week ? week.lessons.flatMap((lesson) => lesson.sentenceFrames) : [],
+    [week]
   )
 
   useEffect(() => {
@@ -406,6 +414,26 @@ export default function StudyDayClassPage() {
             ? `Clipboard failed: ${error.message}`
             : 'Clipboard failed. Copy the prompt manually from the box.'
         )
+      })
+  }
+
+  const handleGetFeedback = (activityId: string, text: string) => {
+    if (!text.trim()) return
+    setActivityFeedbackLoading((prev) => ({ ...prev, [activityId]: true }))
+    void fetch('/api/ai-feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userText: text, sentenceFrames }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: FeedbackResponse | null) => {
+        if (data) {
+          setActivityFeedback((prev) => ({ ...prev, [activityId]: data }))
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        setActivityFeedbackLoading((prev) => ({ ...prev, [activityId]: false }))
       })
   }
 
@@ -905,10 +933,27 @@ export default function StudyDayClassPage() {
                 rows={8}
                 className="mt-4 w-full rounded-xl border border-[#2a2a2a] bg-[#101010] px-4 py-3 text-sm text-gray-200 placeholder:text-gray-600 focus:border-green-500/40 focus:outline-none"
               />
-              <div className="mt-3 inline-flex items-center gap-2 text-xs text-gray-500">
-                <Save size={14} />
-                Saved automatically in this browser
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="inline-flex items-center gap-2 text-xs text-gray-500">
+                  <Save size={14} />
+                  Saved automatically in this browser
+                </div>
+                <button
+                  type="button"
+                  disabled={!(writtenWork[activity.id] ?? '').trim() || activityFeedbackLoading[activity.id]}
+                  onClick={() => handleGetFeedback(activity.id, writtenWork[activity.id] ?? '')}
+                  className="inline-flex items-center gap-2 rounded-lg border border-teal-400/30 bg-teal-400/10 px-3 py-1.5 text-xs text-teal-100 transition-colors hover:bg-teal-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Sparkles size={13} />
+                  Check my writing
+                </button>
               </div>
+              {(activityFeedbackLoading[activity.id] || activityFeedback[activity.id]) && (
+                <FeedbackPanel
+                  feedback={activityFeedback[activity.id] ?? { score: 0, whatWorked: [], errors: [], improvedVersion: '', nextFocus: '', source: 'rules-only' }}
+                  loading={!!activityFeedbackLoading[activity.id]}
+                />
+              )}
             </div>
           ))}
         </div>
