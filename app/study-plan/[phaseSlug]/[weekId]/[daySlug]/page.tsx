@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
@@ -57,6 +57,7 @@ import {
 } from '@/lib/study-errors'
 import { usePersistentStorage } from '@/lib/hooks/usePersistentStorage'
 import { useSpeech } from '@/lib/hooks/useSpeech'
+import { useSupportMode } from '@/lib/contexts/SupportModeContext'
 
 function getResourceEmbedUrl(url: string, channel: string): string | null {
   if (channel === 'TED' && url.includes('ted.com/talks/')) {
@@ -156,7 +157,7 @@ export default function StudyDayClassPage() {
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null)
   const [copyError, setCopyError] = useState<string | null>(null)
   const [errorFlashcardStatus, setErrorFlashcardStatus] = useState<Record<string, string>>({})
-  const [supportModeEnabled, setSupportModeEnabled] = useState(true)
+  const { supportModeEnabled, setSupportModeEnabled } = useSupportMode()
   const [sectionSupportView, setSectionSupportView] = useState<Record<string, StudySupportView>>({})
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
   const [checkedQuizItems, setCheckedQuizItems] = useState<string[]>([])
@@ -183,6 +184,19 @@ export default function StudyDayClassPage() {
     () => studyErrors.filter((error) => error.dayId === (currentDay?.id ?? '')),
     [studyErrors, currentDay?.id]
   )
+
+  useEffect(() => {
+    if (!currentDay) return
+    if (supportModeEnabled) {
+      const views: Record<string, StudySupportView> = {}
+      currentDay.sections.forEach((section) => {
+        views[section.id] = STUDY_SUPPORT_VIEW.SIMPLE
+      })
+      setSectionSupportView(views)
+    } else {
+      setSectionSupportView({})
+    }
+  }, [supportModeEnabled, currentDay])
 
   if (!phase || !week || !currentDay) {
     return (
@@ -1307,6 +1321,16 @@ export default function StudyDayClassPage() {
           )}
         </div>
       </div>
+
+      {supportModeEnabled && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-4 left-4 z-50 inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100 shadow-lg backdrop-blur-sm pointer-events-none select-none"
+        >
+          🛟 Support ON
+        </div>
+      )}
     </div>
   )
 }

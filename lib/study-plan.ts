@@ -1727,7 +1727,7 @@ export function buildWeekDayClasses(week: StudyWeek): StudyDayClass[] {
     const prerequisites = buildPrerequisites(week, dayClass.day, glossary)
     const sentenceStarters = [
       ...(week.lessons[0]?.sentenceFrames.slice(0, 3) ?? []),
-      week.lessons[1]?.sentenceFrames[1] ?? '',
+      week.lessons[1]?.sentenceFrames?.[1] ?? '',
     ].filter(Boolean).slice(0, 4)
 
     const enrichedDayClass: StudyDayClass = {
