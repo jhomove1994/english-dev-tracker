@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
@@ -59,6 +59,7 @@ import {
 import { usePersistentStorage } from '@/lib/hooks/usePersistentStorage'
 import { useSpeech } from '@/lib/hooks/useSpeech'
 import { useSupportMode } from '@/lib/contexts/SupportModeContext'
+import { SectionGate } from './SectionGate'
 
 function getResourceEmbedUrl(url: string, channel: string): string | null {
   if (channel === 'TED' && url.includes('ted.com/talks/')) {
@@ -167,6 +168,7 @@ export default function StudyDayClassPage() {
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
   const [checkedQuizItems, setCheckedQuizItems] = useState<string[]>([])
   const [expandedVocabItems, setExpandedVocabItems] = useState<string[]>([])
+  const [gatePassedThisSession, setGatePassedThisSession] = useState(false)
   const { speak, isSupported: ttsSupported } = useSpeech()
 
   const phaseUnlocked = phase ? isPhaseUnlocked(phase.id - 1, completedLessons, completedCheckpoints, completedDayChecks) : false
@@ -699,11 +701,12 @@ export default function StudyDayClassPage() {
           </div>
         )}
         {currentDay.sections.map((section) => (
+          <Fragment key={section.id}>
           <div
-            key={section.id}
             className={cn(
               'rounded-xl border bg-[#111111] p-6',
-              supportModeEnabled && section.id === guidedSectionId ? 'border-cyan-500/30' : 'border-[#1f1f1f]'
+              supportModeEnabled && section.id === guidedSectionId ? 'border-cyan-500/30' : 'border-[#1f1f1f]',
+              section.id === guidedModelSection?.id && gatePassedThisSession && 'section-reveal'
             )}
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -835,30 +838,22 @@ export default function StudyDayClassPage() {
               </>
             )}
 
-            {section.id === grammarLessonSection?.id && !isSectionComplete(section.id) && (
-              <div className="mt-4 flex flex-col items-start gap-2">
-                <button
-                  type="button"
-                  onClick={() => markSectionComplete(section.id)}
-                  className="inline-flex items-center gap-2 rounded-lg border border-teal-400/30 bg-teal-400/10 px-4 py-2 text-sm text-teal-100 transition-colors hover:bg-teal-400/20"
-                >
-                  <CheckCircle2 size={16} />
-                  Mark grammar section complete
-                </button>
-                <button
-                  type="button"
-                  onClick={() => markSectionComplete(section.id)}
-                  className="text-xs text-gray-500 transition-colors underline-offset-2 hover:text-gray-300 hover:underline"
-                >
-                  Skip
-                </button>
-              </div>
-            )}
-
             {section.id === guidedModelSection?.id && (
               <div ref={guidedModelSentinelRef} className="h-px" aria-hidden="true" />
             )}
           </div>
+
+          {section.id === grammarLessonSection?.id && (
+            <SectionGate
+              questions={currentDay.grammarGate.questions}
+              isAlreadyPassed={isSectionComplete(section.id)}
+              onPass={() => {
+                markSectionComplete(section.id)
+                setGatePassedThisSession(true)
+              }}
+            />
+          )}
+          </Fragment>
         ))}
       </div>
 
