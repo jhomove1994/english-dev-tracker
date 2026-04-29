@@ -25,6 +25,8 @@ import {
   isWeekComplete,
   isWeekUnlocked,
   LESSON_CHECKS_STORAGE_KEY,
+  LESSON_CRITERIA_STORAGE_KEY,
+  LESSON_REFLECTION_STORAGE_KEY,
   WEEK_CHECKPOINTS_STORAGE_KEY,
 } from '@/lib/study-plan'
 import { cn } from '@/lib/utils'
@@ -45,6 +47,10 @@ export default function StudyPhasePage() {
   const [completedLessons, setCompletedLessons] = usePersistentStorage<string[]>(LESSON_CHECKS_STORAGE_KEY, [])
   const [completedCheckpoints, setCompletedCheckpoints] = usePersistentStorage<string[]>(WEEK_CHECKPOINTS_STORAGE_KEY, [])
   const [completedDayChecks] = usePersistentStorage<string[]>(DAY_CHECKS_STORAGE_KEY, [])
+  // lessonCriteria: { [lessonId-criterionIndex]: true }
+  const [lessonCriteria, setLessonCriteria] = usePersistentStorage<Record<string, boolean>>(LESSON_CRITERIA_STORAGE_KEY, {})
+  // lessonReflections: { [lessonId]: text }
+  const [lessonReflections, setLessonReflections] = usePersistentStorage<Record<string, string>>(LESSON_REFLECTION_STORAGE_KEY, {})
 
   const phaseUnlocked = phase ? isPhaseUnlocked(phaseIndex, completedLessons, completedCheckpoints, completedDayChecks) : false
 
@@ -106,6 +112,21 @@ export default function StudyPhasePage() {
       : [...completedLessons, lessonId]
 
     setCompletedLessons(updated)
+  }
+
+  const getLessonCriteriaKey = (lessonId: string, index: number) => `${lessonId}__criteria__${index}`
+
+  const toggleLessonCriterion = (lessonId: string, index: number) => {
+    const key = getLessonCriteriaKey(lessonId, index)
+    setLessonCriteria((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  const isAllCriteriaChecked = (lessonId: string, count: number) => {
+    if (count === 0) return true
+    for (let i = 0; i < count; i++) {
+      if (!lessonCriteria[getLessonCriteriaKey(lessonId, i)]) return false
+    }
+    return true
   }
 
   const toggleCheckpoint = (checkpointId: string) => {
@@ -288,6 +309,8 @@ export default function StudyPhasePage() {
             const meta = skillMeta[lesson.skill]
             const Icon = meta.icon
             const done = completedLessons.includes(lesson.id)
+            const allCriteriaMet = isAllCriteriaChecked(lesson.id, lesson.check.passCriteria.length)
+            const canMarkDone = currentWeekUnlocked && (allCriteriaMet || done)
 
             return (
               <div key={lesson.id} className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-6">
@@ -305,14 +328,22 @@ export default function StudyPhasePage() {
 
                   <button
                     type="button"
-                    disabled={!currentWeekUnlocked}
+                    disabled={!canMarkDone}
                     onClick={() => toggleLesson(lesson.id)}
+                    title={
+                      !currentWeekUnlocked
+                        ? 'Complete the previous week first'
+                        : !allCriteriaMet && !done
+                          ? 'Check all pass criteria below before marking done'
+                          : undefined
+                    }
                     className={cn(
                       'inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors',
                       done
                         ? 'border-green-500/30 bg-green-500/10 text-green-300'
-                        : 'border-[#2a2a2a] bg-[#151515] text-gray-300 hover:border-[#3a3a3a]',
-                      !currentWeekUnlocked && 'cursor-not-allowed opacity-60'
+                        : canMarkDone
+                          ? 'border-[#2a2a2a] bg-[#151515] text-gray-300 hover:border-[#3a3a3a]'
+                          : 'border-[#2a2a2a] bg-[#151515] text-gray-600 cursor-not-allowed opacity-60'
                     )}
                   >
                     {done ? <CheckCircle2 size={16} /> : <Circle size={16} />}
@@ -430,27 +461,64 @@ export default function StudyPhasePage() {
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-[#242424] bg-[#151515] p-4">
-                    <p className="text-xs uppercase tracking-wide text-gray-500">How this lesson is checked</p>
+                  <div className={cn(
+                    'rounded-xl border p-4 lg:col-span-2',
+                    allCriteriaMet ? 'border-green-500/30 bg-green-500/5' : 'border-[#242424] bg-[#151515]'
+                  )}>
+                    <p className="text-xs uppercase tracking-wide text-gray-500">Lesson check — complete before marking done</p>
                     <div className="mt-3 space-y-3">
                       <div>
-                        <p className="text-sm font-medium text-white">Evidence</p>
+                        <p className="text-sm font-medium text-white">Evidence to produce</p>
                         <p className="mt-1 text-sm text-gray-300">{lesson.check.evidence}</p>
                       </div>
                       <div>
                         <p className="text-sm font-medium text-white">Pass criteria</p>
-                        <div className="mt-2 space-y-2">
-                          {lesson.check.passCriteria.map((item) => (
-                            <div key={item} className="flex gap-2 text-sm text-gray-300">
-                              <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-green-400" />
-                              <span>{item}</span>
-                            </div>
-                          ))}
+                        <p className="mt-1 text-xs text-gray-500">Check each item only when you can honestly confirm it.</p>
+                        <div className="mt-3 space-y-2">
+                          {lesson.check.passCriteria.map((item, criterionIndex) => {
+                            const criterionKey = getLessonCriteriaKey(lesson.id, criterionIndex)
+                            const checked = !!lessonCriteria[criterionKey]
+                            return (
+                              <button
+                                key={criterionKey}
+                                type="button"
+                                disabled={!currentWeekUnlocked}
+                                onClick={() => toggleLessonCriterion(lesson.id, criterionIndex)}
+                                className={cn(
+                                  'flex w-full items-start gap-3 rounded-xl border p-3 text-left text-sm transition-colors',
+                                  checked
+                                    ? 'border-green-500/30 bg-green-500/5 text-green-200'
+                                    : 'border-[#2a2a2a] bg-[#101010] text-gray-300 hover:border-[#3a3a3a]',
+                                  !currentWeekUnlocked && 'cursor-not-allowed opacity-60'
+                                )}
+                              >
+                                {checked
+                                  ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-green-400" />
+                                  : <Circle size={15} className="mt-0.5 shrink-0 text-gray-600" />
+                                }
+                                <span>{item}</span>
+                              </button>
+                            )
+                          })}
                         </div>
                       </div>
-                      <div className="rounded-lg border border-[#2a2a2a] bg-[#101010] p-3 text-sm text-gray-300">
-                        <span className="font-medium text-white">Reflection prompt:</span> {lesson.check.reflectionPrompt}
+                      <div>
+                        <p className="text-sm font-medium text-white">Reflection</p>
+                        <p className="mt-1 text-sm text-gray-400">{lesson.check.reflectionPrompt}</p>
+                        <textarea
+                          value={lessonReflections[lesson.id] ?? ''}
+                          onChange={(e) => setLessonReflections((prev) => ({ ...prev, [lesson.id]: e.target.value }))}
+                          disabled={!currentWeekUnlocked}
+                          placeholder="Write your answer here before marking the lesson done…"
+                          rows={3}
+                          className="mt-3 w-full rounded-xl border border-[#2a2a2a] bg-[#101010] px-4 py-3 text-sm text-gray-200 placeholder:text-gray-600 focus:border-green-500/40 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                        />
                       </div>
+                      {currentWeekUnlocked && !done && !allCriteriaMet && (
+                        <p className="text-xs text-amber-300">
+                          Check all {lesson.check.passCriteria.length} criteria above to unlock the &ldquo;Mark lesson as done&rdquo; button.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>

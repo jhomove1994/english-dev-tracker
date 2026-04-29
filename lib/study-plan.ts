@@ -1,6 +1,8 @@
 import { ALL_STUDY_WEEKS, STUDY_PHASES, type StudyPhase, type StudyWeek } from '@/lib/data/study-plan'
 
 export const LESSON_CHECKS_STORAGE_KEY = 'study_plan_lesson_checks'
+export const LESSON_CRITERIA_STORAGE_KEY = 'study_plan_lesson_criteria'
+export const LESSON_REFLECTION_STORAGE_KEY = 'study_plan_lesson_reflections'
 export const WEEK_CHECKPOINTS_STORAGE_KEY = 'study_plan_week_checkpoints'
 export const DAY_CHECKS_STORAGE_KEY = 'study_plan_day_checks'
 export const DAY_WRITING_STORAGE_KEY = 'study_plan_day_writing'
